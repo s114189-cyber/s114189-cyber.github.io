@@ -59,20 +59,20 @@ const GRAVITY=0.4,MAX_VY=9,RED_LINE=60;
 let gameStarted=false,gameOver=false,canDrop=true,dropX=canvas.width/2;
 let score=0,highScore=localStorage.getItem("melonHighScore")||0;
 
-// 12球，彩虹順序
+// 12球，彩虹順序，大小差距明顯
 const fruits=[
-  {r:28,color:"#ff0000",score:10},
-  {r:30,color:"#ff7f00",score:20},
-  {r:32,color:"#ffff00",score:40},
-  {r:34,color:"#7fff00",score:80},
-  {r:36,color:"#00ff00",score:160},
-  {r:38,color:"#00ff7f",score:320},
-  {r:40,color:"#00ffff",score:640},
-  {r:42,color:"#007fff",score:1280},
-  {r:44,color:"#0000ff",score:2560},
-  {r:46,color:"#7f00ff",score:5120},
-  {r:48,color:"#ff00ff",score:10240},
-  {r:50,color:"#ff007f",score:20480}
+  {r:20,color:"#ff0000",score:10},   // 紅
+  {r:24,color:"#ff7f00",score:20},   // 橙
+  {r:28,color:"#ffff00",score:40},   // 黃
+  {r:32,color:"#7fff00",score:80},   // 黃綠
+  {r:36,color:"#00ff00",score:160},  // 綠
+  {r:40,color:"#00ff7f",score:320},  // 青綠
+  {r:44,color:"#00ffff",score:640},  // 青
+  {r:48,color:"#007fff",score:1280}, // 藍
+  {r:52,color:"#0000ff",score:2560}, // 靛
+  {r:56,color:"#7f00ff",score:5120}, // 紫
+  {r:60,color:"#ff00ff",score:10240},// 品紅
+  {r:64,color:"#ff007f",score:20480} // 桃紅
 ];
 
 // 設定橫向格子數量
@@ -90,7 +90,7 @@ class Ball{
     this.vy=Math.min(this.vy+GRAVITY,MAX_VY);
     this.y+=this.vy;
 
-    // 往下找碰撞
+    // 檢查碰撞，往上堆疊
     for(const other of balls){
       if(other===this||!other.settled) continue;
       const dx=this.x-other.x;
@@ -109,8 +109,6 @@ class Ball{
       this.vy=0;
       this.settled=true;
     }
-
-    // 橫向邊界
     this.x=clamp(this.x,this.r,canvas.width-this.r);
   }
 
@@ -137,10 +135,20 @@ function movePreview(clientX){
 }
 canvas.addEventListener("mousemove",e=>{if(gameStarted) movePreview(e.clientX);});
 canvas.addEventListener("click",()=>{if(gameStarted && !gameOver && canDrop) drop();});
+
+// 手機滑動
 let moved=false;
 canvas.addEventListener("touchstart",e=>{if(!gameStarted||gameOver)return;moved=false;},{passive:false});
-canvas.addEventListener("touchmove",e=>{if(!gameStarted)return;e.preventDefault();moved=true;movePreview(e.touches[0].clientX);},{passive:false});
-canvas.addEventListener("touchend",e=>{if(!gameStarted||gameOver)return;if(!moved&&canDrop)drop();},{passive:false});
+canvas.addEventListener("touchmove",e=>{
+  if(!gameStarted) return;
+  e.preventDefault();
+  moved=true;
+  movePreview(e.touches[0].clientX);
+},{passive:false});
+canvas.addEventListener("touchend",e=>{
+  if(!gameStarted||gameOver) return;
+  if(!moved && canDrop) drop();
+},{passive:false});
 
 // 掉落球
 function drop(){
@@ -207,7 +215,7 @@ function checkGameOver(){
 function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // 畫紅線
+  // 紅線
   ctx.strokeStyle="red";
   ctx.lineWidth=2;
   ctx.beginPath();
@@ -226,9 +234,9 @@ function loop(){
   ctx.fillText("分數: "+score,10,20);
   ctx.fillText("最高分: "+highScore,10,45);
 
-  // 合成順序表 (Canvas 下方，2~3排)
+  // 合成順序表 (12球，2排)
   ctx.font="14px sans-serif";
-  let x=10,y=canvas.height-80;
+  let x=10,y=canvas.height-100;
   for(let i=0;i<fruits.length;i++){
     ctx.fillStyle=fruits[i].color;
     ctx.beginPath();

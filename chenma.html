@@ -11,22 +11,17 @@
     justify-content: center;
     align-items: center;
     height: 100vh;
-    user-select: none;
   }
-  #container {
-    position: relative;
-  }
+  #container { position: relative; }
   canvas {
     background: #fffbe6;
     border: 3px solid #444;
-    touch-action: none; /* ⭐ 關鍵 */
+    touch-action: none;
   }
   button {
     position: absolute;
     top: 10px;
     right: 10px;
-    padding: 6px 12px;
-    font-size: 14px;
   }
 </style>
 </head>
@@ -42,6 +37,8 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const GRAVITY = 0.35;
+const RED_LINE = 60;
+
 let score = 0;
 let highScore = localStorage.getItem("highScore") || 0;
 let gameOver = false;
@@ -66,7 +63,6 @@ class Ball {
     this.type = type;
   }
   get r() { return fruits[this.type].r; }
-
   update() {
     this.vy += GRAVITY;
     this.y += this.vy;
@@ -75,12 +71,10 @@ class Ball {
       this.vy *= -0.2;
     }
   }
-
   draw() {
-    const f = fruits[this.type];
     ctx.beginPath();
-    ctx.arc(this.x, this.y, f.r, 0, Math.PI * 2);
-    ctx.fillStyle = f.color;
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = fruits[this.type].color;
     ctx.fill();
   }
 }
@@ -88,30 +82,30 @@ class Ball {
 let balls = [];
 let nextFruit = Math.floor(Math.random() * 3);
 
-/* ===== 電腦 ===== */
+/* 電腦 */
 canvas.addEventListener("mousemove", e => {
-  const rect = canvas.getBoundingClientRect();
-  dropX = e.clientX - rect.left;
+  const r = canvas.getBoundingClientRect();
+  dropX = e.clientX - r.left;
 });
 canvas.addEventListener("click", dropFruit);
 
-/* ===== 手機（重點） ===== */
+/* 手機 */
 canvas.addEventListener("touchstart", e => {
-  e.preventDefault(); // ⭐ 關鍵
-  const rect = canvas.getBoundingClientRect();
-  dropX = e.touches[0].clientX - rect.left;
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  dropX = e.touches[0].clientX - r.left;
   dropFruit();
-}, { passive: false });
+}, { passive:false });
 
 canvas.addEventListener("touchmove", e => {
-  e.preventDefault(); // ⭐ 關鍵
-  const rect = canvas.getBoundingClientRect();
-  dropX = e.touches[0].clientX - rect.left;
-}, { passive: false });
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  dropX = e.touches[0].clientX - r.left;
+}, { passive:false });
 
 function dropFruit() {
   if (gameOver) return;
-  balls.push(new Ball(dropX, 30, nextFruit));
+  balls.push(new Ball(dropX, RED_LINE + 20, nextFruit));
   nextFruit = Math.floor(Math.random() * 3);
 }
 
@@ -140,31 +134,31 @@ function merge() {
   }
 }
 
+function checkGameOver() {
+  balls.forEach(b => {
+    if (b.vy < 0.5 && b.y - b.r < RED_LINE) {
+      gameOver = true;
+    }
+  });
+}
+
 function drawUI() {
   ctx.fillStyle = "#000";
-  ctx.font = "16px sans-serif";
   ctx.fillText("分數：" + score, 10, 20);
   ctx.fillText("最高分：" + highScore, 10, 40);
 
   ctx.setLineDash([6,6]);
   ctx.strokeStyle = "red";
   ctx.beginPath();
-  ctx.moveTo(0, 55);
-  ctx.lineTo(canvas.width, 55);
+  ctx.moveTo(0, RED_LINE);
+  ctx.lineTo(canvas.width, RED_LINE);
   ctx.stroke();
   ctx.setLineDash([]);
-}
-
-function checkGameOver() {
-  balls.forEach(b => {
-    if (b.y - b.r < 55) gameOver = true;
-  });
 }
 
 function restartConfirm() {
   if (confirm("確定要重新開始嗎？")) restart();
 }
-
 function restart() {
   balls = [];
   score = 0;
@@ -172,15 +166,16 @@ function restart() {
 }
 
 function loop() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
   balls.forEach(b => { b.update(); b.draw(); });
   merge();
   drawUI();
   checkGameOver();
-  if (gameOver) ctx.fillText("Game Over", 110, 300);
+  if (gameOver) ctx.fillText("Game Over", 120, 300);
   requestAnimationFrame(loop);
 }
 loop();
 </script>
 </body>
 </html>
+

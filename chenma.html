@@ -35,7 +35,7 @@
     cursor: pointer;
   }
   #fruitSequence {
-    margin-top: 20px;
+    margin-top: 10px; /* 黑框下方 */
     display: flex;
     justify-content: center;
     align-items: flex-end;
@@ -143,7 +143,6 @@ startScreen.addEventListener("click", () => {
 });
 
 /* ===== 操作事件 ===== */
-// 滑動只控制左右位置
 function moveDropX(clientX){
   const r = canvas.getBoundingClientRect();
   dropX = clientX - r.left;
@@ -159,7 +158,7 @@ canvas.addEventListener("touchmove", e => {
 // 點擊/觸碰掉球
 function dropFruit(){
   if(gameOver) return;
-  balls.push(new Ball(dropX, RED_LINE + 15, nextFruit));
+  balls.push(new Ball(dropX, RED_LINE + 25, nextFruit));
   nextFruit = Math.floor(Math.random() * 3);
 }
 canvas.addEventListener("click", e => { if(gameStarted) dropFruit(); });
@@ -228,10 +227,10 @@ function drawUI(){
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // 預覽球（放下面一點）
+  // 預覽球（紅線下方）
   const f=fruits[nextFruit];
   ctx.beginPath();
-  ctx.arc(dropX, RED_LINE + 25, f.r,0,Math.PI*2);
+  ctx.arc(dropX, RED_LINE + 25 + f.r, f.r,0,Math.PI*2);
   ctx.fillStyle=f.color;
   ctx.fill();
 }

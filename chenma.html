@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（修正版）</title>
+<title>合成水果遊戲（最終可玩版）</title>
 <style>
 body{
   margin:0;
@@ -12,283 +12,166 @@ body{
   align-items:center;
   font-family:sans-serif;
   user-select:none;
-  touch-action:none;
-}
-#container{
-  position:relative;
-  margin-top:20px;
 }
 canvas{
   background:#fffbe6;
   border:3px solid #444;
-  display:block;
-  touch-action:none;
 }
-#startScreen{
-  position:absolute;
-  inset:0;
-  background:rgba(255,255,255,0.95);
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  font-size:24px;
-  z-index:10;
-  cursor:pointer;
-}
-button{
-  position:absolute;
-  top:10px;
-  right:10px;
-  z-index:5;
-}
-#scoreBoard{
-  margin-top:10px;
-  text-align:left;
+#score{
   width:360px;
+  margin-top:8px;
 }
-#orderTable{
-  margin-top:10px;
+#order{
   width:360px;
   display:flex;
   flex-wrap:wrap;
-  justify-content:flex-start;
   gap:4px;
+  margin-top:6px;
 }
 .orderBall{
   border-radius:50%;
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:12px;
-  color:#000;
+  font-size:11px;
   font-weight:bold;
 }
 </style>
 </head>
 <body>
-<div id="container">
-  <canvas id="game" width="360" height="600"></canvas>
-  <div id="startScreen">點擊開始遊戲 🍉</div>
-  <button onclick="restart()">重新開始</button>
-</div>
-<div id="scoreBoard">
-  <div id="scoreText">分數: 0 &nbsp;&nbsp;最高分: 0</div>
-</div>
-<div id="orderTable"></div>
+
+<canvas id="game" width="360" height="600"></canvas>
+<div id="score">分數: 0　最高分: 0</div>
+<div id="order"></div>
 
 <script>
-const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
-const startScreen=document.getElementById("startScreen");
-const scoreText=document.getElementById("scoreText");
-const orderTable=document.getElementById("orderTable");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreDiv = document.getElementById("score");
+const orderDiv = document.getElementById("order");
 
-const GRAVITY=0.5, MAX_VY=12, RED_LINE=60;
-let gameStarted=false, gameOver=false, canDrop=true;
-let dropX=180, score=0, highScore=localStorage.getItem("melonHighScore")||0;
+const GRAVITY = 0.6;
+const RED_LINE = 70;
 
-// 12球，小尺寸，彩虹順序
-const fruits=[
-  {r:16,color:"#ff0000",score:10},
-  {r:20,color:"#ff7f00",score:20},
-  {r:24,color:"#ffff00",score:40},
-  {r:28,color:"#7fff00",score:80},
-  {r:32,color:"#00ff00",score:160},
-  {r:36,color:"#00ff7f",score:320},
-  {r:40,color:"#00ffff",score:640},
-  {r:44,color:"#007fff",score:1280},
-  {r:48,color:"#0000ff",score:2560},
-  {r:52,color:"#7f00ff",score:5120},
-  {r:56,color:"#ff00ff",score:10240},
-  {r:60,color:"#ff007f",score:20480}
+const fruits = [
+ {r:16,c:"#f00",s:10},{r:20,c:"#f80",s:20},{r:24,c:"#ff0",s:40},
+ {r:28,c:"#7f0",s:80},{r:32,c:"#0f0",s:160},{r:36,c:"#0f7",s:320},
+ {r:40,c:"#0ff",s:640},{r:44,c:"#07f",s:1280},{r:48,c:"#00f",s:2560},
+ {r:52,c:"#70f",s:5120},{r:56,c:"#f0f",s:10240},{r:60,c:"#f07",s:20480}
 ];
 
-const GRID_W=12;
-const gridSpacing=canvas.width/GRID_W;
-
 class Ball{
-  constructor(x,y,type){
-    this.x=x; this.y=y; this.vy=0; this.type=type; this.settled=false;
+  constructor(x,y,t){
+    this.x=x; this.y=y; this.vy=0;
+    this.t=t; this.settled=false;
   }
-  get r(){return fruits[this.type].r;}
+  get r(){return fruits[this.t].r;}
   update(){
     if(this.settled) return;
-    this.vy=Math.min(this.vy+GRAVITY, MAX_VY);
+    this.vy+=GRAVITY;
     this.y+=this.vy;
 
-    // 找到最近沉底位置
-    let maxY=canvas.height-this.r;
-    for(const other of balls){
-      if(other===this||!other.settled) continue;
-      if(Math.abs(other.x-this.x)<gridSpacing/2){
-        maxY=Math.min(maxY, other.y-this.r-other.r+1);
+    for(const o of balls){
+      if(o===this||!o.settled) continue;
+      const dx=this.x-o.x, dy=this.y-o.y;
+      const d=Math.hypot(dx,dy);
+      if(d < this.r+o.r){
+        this.y=o.y-(this.r+o.r);
+        this.vy=0;
+        this.settled=true;
       }
     }
-    if(this.y>maxY){
-      this.y=maxY;
+    if(this.y+this.r>=canvas.height){
+      this.y=canvas.height-this.r;
       this.vy=0;
       this.settled=true;
     }
   }
   draw(){
-    const f=fruits[this.type];
     ctx.beginPath();
-    ctx.arc(this.x,this.y,f.r,0,Math.PI*2);
-    ctx.fillStyle=f.color;
+    ctx.arc(this.x,this.y,this.r,0,Math.PI*2);
+    ctx.fillStyle=fruits[this.t].c;
     ctx.fill();
-    ctx.strokeStyle="#000";
     ctx.stroke();
   }
 }
 
 let balls=[];
-let nextFruit=Math.floor(Math.random()*3);
+let dropX=180;
+let next=0;
+let score=0;
+let high=localStorage.getItem("melonHigh")||0;
 
-// 開始
-startScreen.onclick=()=>{gameStarted=true;startScreen.style.display="none";}
-
-// 滑動控制
-function movePreview(clientX){
-  const rect=canvas.getBoundingClientRect();
-  dropX=clamp(clientX-rect.left,fruits[nextFruit].r,canvas.width-fruits[nextFruit].r);
-}
-
-// 電腦事件
-canvas.addEventListener("mousemove",e=>{if(gameStarted) movePreview(e.clientX);});
-canvas.addEventListener("click",()=>{if(gameStarted && !gameOver && canDrop) drop();});
-
-// 手機滑動
-let moved=false;
-canvas.addEventListener("touchstart",e=>{if(!gameStarted||gameOver)return;moved=false;},{passive:false});
-canvas.addEventListener("touchmove",e=>{
-  if(!gameStarted) return;
-  e.preventDefault();
-  moved=true;
-  movePreview(e.touches[0].clientX);
-},{passive:false});
-canvas.addEventListener("touchend",e=>{
-  if(!gameStarted||gameOver) return;
-  if(!moved && canDrop) drop();
-},{passive:false});
-
-// 掉落
 function drop(){
-  if(!canDrop) return;
-  canDrop=false;
-  balls.push(new Ball(dropX, RED_LINE+60, nextFruit));
-  nextFruit=Math.floor(Math.random()*3);
-  setTimeout(()=>canDrop=true,200);
+  balls.push(new Ball(dropX,RED_LINE+40,next));
+  next=Math.floor(Math.random()*3);
 }
 
-// 合成（連鎖）
 function merge(){
-  let merged;
-  do{
-    merged=false;
-    for(let i=0;i<balls.length;i++){
-      for(let j=i+1;j<balls.length;j++){
-        const a=balls[i],b=balls[j];
-        if(a.type===b.type && Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r){
+  for(let i=0;i<balls.length;i++){
+    for(let j=i+1;j<balls.length;j++){
+      const a=balls[i],b=balls[j];
+      if(a.t===b.t){
+        const d=Math.hypot(a.x-b.x,a.y-b.y);
+        if(d < a.r+b.r+2){
           const nx=(a.x+b.x)/2;
           const ny=(a.y+b.y)/2;
-          const nt=a.type+1;
-          score+=fruits[a.type].score;
-          if(score>highScore){highScore=score;localStorage.setItem("melonHighScore",highScore);}
-          balls.splice(j,1); balls.splice(i,1);
-          if(nt<fruits.length){
-            balls.push(new Ball(nx, ny, nt));
-          }
-          merged=true;
-          break;
+          score+=fruits[a.t].s;
+          balls.splice(j,1);
+          balls.splice(i,1);
+          balls.push(new Ball(nx,ny,a.t+1));
+          return;
         }
       }
-      if(merged) break;
-    }
-  }while(merged);
-}
-
-// Game Over
-function checkGameOver(){
-  for(const b of balls){
-    if(b.settled && b.y-b.r<RED_LINE){
-      gameOver=true;
-      if(score>highScore){highScore=score;localStorage.setItem("melonHighScore",highScore);}
-      return;
     }
   }
 }
 
-// 顯示合成順序表
-function drawOrderTable(){
-  orderTable.innerHTML="";
-  for(let i=0;i<fruits.length;i++){
-    const div=document.createElement("div");
-    div.className="orderBall";
-    const size=fruits[i].r*2*0.8; // 縮小比例
-    div.style.width=size+"px";
-    div.style.height=size+"px";
-    div.style.backgroundColor=fruits[i].color;
-    div.textContent=i+1;
-    orderTable.appendChild(div);
-  }
-}
+canvas.addEventListener("mousemove",e=>{
+  dropX=e.offsetX;
+});
 
-// 主迴圈
+canvas.addEventListener("click",drop);
+
+// 手機：滑動＝移動，放手＝放球
+canvas.addEventListener("touchmove",e=>{
+  dropX=e.touches[0].clientX-canvas.getBoundingClientRect().left;
+});
+canvas.addEventListener("touchend",drop);
+
 function loop(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0,0,360,600);
 
-  // 紅線
   ctx.strokeStyle="red";
-  ctx.lineWidth=2;
-  ctx.setLineDash([5,3]);
   ctx.beginPath();
   ctx.moveTo(0,RED_LINE);
-  ctx.lineTo(canvas.width,RED_LINE);
+  ctx.lineTo(360,RED_LINE);
   ctx.stroke();
-  ctx.setLineDash([]);
 
-  // 球更新與繪製
   balls.forEach(b=>{b.update();b.draw();});
   merge();
-  checkGameOver();
 
-  // 下一顆球預覽
-  const pf=fruits[nextFruit];
+  const p=fruits[next];
   ctx.beginPath();
-  ctx.arc(dropX, RED_LINE/2, pf.r*1.2,0,Math.PI*2);
-  ctx.fillStyle=pf.color;
+  ctx.arc(dropX,40,p.r*1.2,0,Math.PI*2);
+  ctx.fillStyle=p.c;
   ctx.fill();
-  ctx.strokeStyle="#000";
   ctx.stroke();
 
-  // 分數
-  scoreText.innerHTML=`分數: ${score} &nbsp;&nbsp;最高分: ${highScore}`;
-
-  // 合成順序表
-  drawOrderTable();
-
-  // Game Over
-  if(gameOver){
-    ctx.fillStyle="black";
-    ctx.font="32px sans-serif";
-    ctx.fillText("GAME OVER",80,300);
-    ctx.strokeStyle="white";
-    ctx.lineWidth=2;
-    ctx.strokeText("GAME OVER",80,300);
-  }
-
+  scoreDiv.innerText=`分數: ${score}　最高分: ${high}`;
   requestAnimationFrame(loop);
 }
 loop();
 
-// 重新開始
-function restart(){
-  balls=[];
-  score=0;
-  gameOver=false;
-  nextFruit=Math.floor(Math.random()*3);
-}
+// 合成順序
+fruits.forEach((f,i)=>{
+  const d=document.createElement("div");
+  d.className="orderBall";
+  d.style.width=d.style.height=f.r*1.4+"px";
+  d.style.background=f.c;
+  d.innerText=i+1;
+  orderDiv.appendChild(d);
+});
 </script>
 </body>
 </html>

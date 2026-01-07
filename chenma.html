@@ -6,16 +6,18 @@
     <link rel="icon" href="apple_158989157.jpg">
 <style>
 body {
-   margin: 0;
-    background: #f5deb3;
+ margin: 0;
+    background: #f2e8c9;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
+    user-select: none;
   }
   canvas {
-    background: #fff8dc;
-    border: 3px solid #333;
+    background: #fffbe6;
+    border: 3px solid #444;
+    touch-action: none;
   }
 </style>
 </head>
@@ -27,23 +29,21 @@ body {
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-const GRAVITY = 0.3;
-const fruits = [
-  { r: 10, color: "#ff6666" },
-  { r: 14, color: "#ff9966" },
-  { r: 18, color: "#ffcc66" },
-  { r: 22, color: "#99cc66" },
-  { r: 26, color: "#66cc99" },
-  { r: 30, color: "#66cccc" },
-  { r: 36, color: "#6699ff" },
-  { r: 42, color: "#9966ff" },
-  { r: 48, color: "#33aa33" } // 西瓜
-];
-
-let balls = [];
-let currentFruit = Math.floor(Math.random() * 3);
-let dropX = canvas.width / 2;
+const GRAVITY = 0.35;
+let score = 0;
 let gameOver = false;
+let dropX = canvas.width / 2;
+
+const fruits = [
+  { r: 12, color: "#ff7676", score: 10 },
+  { r: 16, color: "#ff9f43", score: 20 },
+  { r: 20, color: "#feca57", score: 40 },
+  { r: 24, color: "#1dd1a1", score: 80 },
+  { r: 28, color: "#48dbfb", score: 160 },
+  { r: 34, color: "#5f27cd", score: 320 },
+  { r: 40, color: "#2ecc71", score: 640 },
+  { r: 46, color: "#27ae60", score: 1280 } // 西瓜
+];
 
 class Ball {
   constructor(x, y, type) {
@@ -53,9 +53,7 @@ class Ball {
     this.type = type;
   }
 
-  get r() {
-    return fruits[this.type].r;
-  }
+  get r() { return fruits[this.type].r; }
 
   update() {
     this.vy += GRAVITY;
@@ -68,11 +66,32 @@ class Ball {
   }
 
   draw() {
+    const f = fruits[this.type];
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-    ctx.fillStyle = fruits[this.type].color;
+    ctx.arc(this.x, this.y, f.r, 0, Math.PI * 2);
+    ctx.fillStyle = f.color;
     ctx.fill();
+
+    // 臉
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.arc(this.x - f.r/4, this.y - f.r/6, 2, 0, Math.PI*2);
+    ctx.arc(this.x + f.r/4, this.y - f.r/6, 2, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(this.x, this.y + f.r/6, f.r/5, 0, Math.PI);
+    ctx.stroke();
   }
+}
+
+let balls = [];
+let nextFruit = Math.floor(Math.random() * 3);
+
+function dropFruit() {
+  if (gameOver) return;
+  balls.push(new Ball(dropX, 30, nextFruit));
+  nextFruit = Math.floor(Math.random() * 3);
 }
 
 canvas.addEventListener("mousemove", e => {
@@ -80,31 +99,31 @@ canvas.addEventListener("mousemove", e => {
   dropX = e.clientX - rect.left;
 });
 
-canvas.addEventListener("click", () => {
-  if (gameOver) return;
-  balls.push(new Ball(dropX, 20, currentFruit));
-  currentFruit = Math.floor(Math.random() * 3);
+canvas.addEventListener("click", dropFruit);
+
+canvas.addEventListener("touchmove", e => {
+  const rect = canvas.getBoundingClientRect();
+  dropX = e.touches[0].clientX - rect.left;
 });
 
+canvas.addEventListener("touchstart", dropFruit);
+
 function collide(a, b) {
-  const dx = a.x - b.x;
-  const dy = a.y - b.y;
-  return Math.hypot(dx, dy) < a.r + b.r;
+  return Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r;
 }
 
 function merge() {
   for (let i = 0; i < balls.length; i++) {
     for (let j = i + 1; j < balls.length; j++) {
-      if (
-        balls[i].type === balls[j].type &&
-        collide(balls[i], balls[j])
-      ) {
+      if (balls[i].type === balls[j].type && collide(balls[i], balls[j])) {
         const nx = (balls[i].x + balls[j].x) / 2;
         const ny = (balls[i].y + balls[j].y) / 2;
         const nt = balls[i].type + 1;
 
+        score += fruits[balls[i].type].score;
         balls.splice(j, 1);
         balls.splice(i, 1);
+
         if (nt < fruits.length) {
           balls.push(new Ball(nx, ny, nt));
         }
@@ -114,26 +133,36 @@ function merge() {
   }
 }
 
-function checkGameOver() {
-  balls.forEach(b => {
-    if (b.y - b.r < 40) gameOver = true;
-  });
-}
+function drawUI() {
+  ctx.fillStyle = "#000";
+  ctx.font = "18px sans-serif";
+  ctx.fillText("分數：" + score, 10, 24);
 
-function drawLine() {
+  ctx.setLineDash([6, 6]);
   ctx.strokeStyle = "red";
-  ctx.setLineDash([5, 5]);
   ctx.beginPath();
-  ctx.moveTo(0, 40);
-  ctx.lineTo(canvas.width, 40);
+  ctx.moveTo(0, 50);
+  ctx.lineTo(canvas.width, 50);
   ctx.stroke();
   ctx.setLineDash([]);
+
+  if (!gameOver) {
+    const f = fruits[nextFruit];
+    ctx.beginPath();
+    ctx.arc(dropX, 30, f.r, 0, Math.PI * 2);
+    ctx.fillStyle = f.color;
+    ctx.fill();
+  }
+}
+
+function checkGameOver() {
+  balls.forEach(b => {
+    if (b.y - b.r < 50) gameOver = true;
+  });
 }
 
 function loop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  drawLine();
 
   balls.forEach(b => {
     b.update();
@@ -141,18 +170,13 @@ function loop() {
   });
 
   merge();
+  drawUI();
   checkGameOver();
 
   if (gameOver) {
     ctx.fillStyle = "black";
     ctx.font = "32px sans-serif";
     ctx.fillText("Game Over", 90, 300);
-  } else {
-    // 顯示下一顆
-    ctx.beginPath();
-    ctx.arc(dropX, 20, fruits[currentFruit].r, 0, Math.PI * 2);
-    ctx.fillStyle = fruits[currentFruit].color;
-    ctx.fill();
   }
 
   requestAnimationFrame(loop);
@@ -160,6 +184,5 @@ function loop() {
 
 loop();
 </script>
-
 </body>
 </html>

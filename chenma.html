@@ -6,23 +6,160 @@
     <link rel="icon" href="apple_158989157.jpg">
 <style>
 body {
-    margin: 0;
-    background: #222;
+   margin: 0;
+    background: #f5deb3;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
-    color: white;
-    font-family: Arial;
-}
-canvas {
-    background: #111;
-    border: 2px solid white;
-}
+  }
+  canvas {
+    background: #fff8dc;
+    border: 3px solid #333;
+  }
 </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="400" height="460"></canvas>
-<script src="game.js"></script>
+
+<canvas id="game" width="360" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+const GRAVITY = 0.3;
+const fruits = [
+  { r: 10, color: "#ff6666" },
+  { r: 14, color: "#ff9966" },
+  { r: 18, color: "#ffcc66" },
+  { r: 22, color: "#99cc66" },
+  { r: 26, color: "#66cc99" },
+  { r: 30, color: "#66cccc" },
+  { r: 36, color: "#6699ff" },
+  { r: 42, color: "#9966ff" },
+  { r: 48, color: "#33aa33" } // 西瓜
+];
+
+let balls = [];
+let currentFruit = Math.floor(Math.random() * 3);
+let dropX = canvas.width / 2;
+let gameOver = false;
+
+class Ball {
+  constructor(x, y, type) {
+    this.x = x;
+    this.y = y;
+    this.vy = 0;
+    this.type = type;
+  }
+
+  get r() {
+    return fruits[this.type].r;
+  }
+
+  update() {
+    this.vy += GRAVITY;
+    this.y += this.vy;
+
+    if (this.y + this.r > canvas.height) {
+      this.y = canvas.height - this.r;
+      this.vy *= -0.2;
+    }
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = fruits[this.type].color;
+    ctx.fill();
+  }
+}
+
+canvas.addEventListener("mousemove", e => {
+  const rect = canvas.getBoundingClientRect();
+  dropX = e.clientX - rect.left;
+});
+
+canvas.addEventListener("click", () => {
+  if (gameOver) return;
+  balls.push(new Ball(dropX, 20, currentFruit));
+  currentFruit = Math.floor(Math.random() * 3);
+});
+
+function collide(a, b) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.hypot(dx, dy) < a.r + b.r;
+}
+
+function merge() {
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i + 1; j < balls.length; j++) {
+      if (
+        balls[i].type === balls[j].type &&
+        collide(balls[i], balls[j])
+      ) {
+        const nx = (balls[i].x + balls[j].x) / 2;
+        const ny = (balls[i].y + balls[j].y) / 2;
+        const nt = balls[i].type + 1;
+
+        balls.splice(j, 1);
+        balls.splice(i, 1);
+        if (nt < fruits.length) {
+          balls.push(new Ball(nx, ny, nt));
+        }
+        return;
+      }
+    }
+  }
+}
+
+function checkGameOver() {
+  balls.forEach(b => {
+    if (b.y - b.r < 40) gameOver = true;
+  });
+}
+
+function drawLine() {
+  ctx.strokeStyle = "red";
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(0, 40);
+  ctx.lineTo(canvas.width, 40);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawLine();
+
+  balls.forEach(b => {
+    b.update();
+    b.draw();
+  });
+
+  merge();
+  checkGameOver();
+
+  if (gameOver) {
+    ctx.fillStyle = "black";
+    ctx.font = "32px sans-serif";
+    ctx.fillText("Game Over", 90, 300);
+  } else {
+    // 顯示下一顆
+    ctx.beginPath();
+    ctx.arc(dropX, 20, fruits[currentFruit].r, 0, Math.PI * 2);
+    ctx.fillStyle = fruits[currentFruit].color;
+    ctx.fill();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
 </body>
 </html>

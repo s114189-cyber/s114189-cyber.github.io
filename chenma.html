@@ -1,12 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>Fruit Merge</title>
-    <link rel="icon" href="apple_158989157.jpg">
+<title>合成水果遊戲</title>
 <style>
-body {
- margin: 0;
+  body {
+    margin: 0;
     background: #f2e8c9;
     display: flex;
     justify-content: center;
@@ -14,16 +13,30 @@ body {
     height: 100vh;
     user-select: none;
   }
+  #container {
+    position: relative;
+  }
   canvas {
     background: #fffbe6;
     border: 3px solid #444;
     touch-action: none;
   }
+  button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
 
-<canvas id="game" width="360" height="600"></canvas>
+<div id="container">
+  <canvas id="game" width="360" height="600"></canvas>
+  <button onclick="restartConfirm()">重新開始</button>
+</div>
 
 <script>
 const canvas = document.getElementById("game");
@@ -31,6 +44,7 @@ const ctx = canvas.getContext("2d");
 
 const GRAVITY = 0.35;
 let score = 0;
+let highScore = localStorage.getItem("highScore") || 0;
 let gameOver = false;
 let dropX = canvas.width / 2;
 
@@ -42,7 +56,7 @@ const fruits = [
   { r: 28, color: "#48dbfb", score: 160 },
   { r: 34, color: "#5f27cd", score: 320 },
   { r: 40, color: "#2ecc71", score: 640 },
-  { r: 46, color: "#27ae60", score: 1280 } // 西瓜
+  { r: 46, color: "#27ae60", score: 1280 }
 ];
 
 class Ball {
@@ -52,13 +66,11 @@ class Ball {
     this.vy = 0;
     this.type = type;
   }
-
   get r() { return fruits[this.type].r; }
 
   update() {
     this.vy += GRAVITY;
     this.y += this.vy;
-
     if (this.y + this.r > canvas.height) {
       this.y = canvas.height - this.r;
       this.vy *= -0.2;
@@ -98,14 +110,12 @@ canvas.addEventListener("mousemove", e => {
   const rect = canvas.getBoundingClientRect();
   dropX = e.clientX - rect.left;
 });
-
 canvas.addEventListener("click", dropFruit);
 
 canvas.addEventListener("touchmove", e => {
   const rect = canvas.getBoundingClientRect();
   dropX = e.touches[0].clientX - rect.left;
 });
-
 canvas.addEventListener("touchstart", dropFruit);
 
 function collide(a, b) {
@@ -121,6 +131,12 @@ function merge() {
         const nt = balls[i].type + 1;
 
         score += fruits[balls[i].type].score;
+
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem("highScore", highScore);
+        }
+
         balls.splice(j, 1);
         balls.splice(i, 1);
 
@@ -135,14 +151,15 @@ function merge() {
 
 function drawUI() {
   ctx.fillStyle = "#000";
-  ctx.font = "18px sans-serif";
-  ctx.fillText("分數：" + score, 10, 24);
+  ctx.font = "16px sans-serif";
+  ctx.fillText("分數：" + score, 10, 22);
+  ctx.fillText("最高分：" + highScore, 10, 42);
 
   ctx.setLineDash([6, 6]);
   ctx.strokeStyle = "red";
   ctx.beginPath();
-  ctx.moveTo(0, 50);
-  ctx.lineTo(canvas.width, 50);
+  ctx.moveTo(0, 55);
+  ctx.lineTo(canvas.width, 55);
   ctx.stroke();
   ctx.setLineDash([]);
 
@@ -157,8 +174,21 @@ function drawUI() {
 
 function checkGameOver() {
   balls.forEach(b => {
-    if (b.y - b.r < 50) gameOver = true;
+    if (b.y - b.r < 55) gameOver = true;
   });
+}
+
+function restartConfirm() {
+  if (confirm("確定要重新開始嗎？目前分數將會清空")) {
+    restart();
+  }
+}
+
+function restart() {
+  balls = [];
+  score = 0;
+  gameOver = false;
+  nextFruit = Math.floor(Math.random() * 3);
 }
 
 function loop() {

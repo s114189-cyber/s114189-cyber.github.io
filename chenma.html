@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（完成物理版）</title>
+<title>合成水果遊戲（滾動＋摩擦版）</title>
 <style>
 body{
   margin:0;
@@ -11,49 +11,29 @@ body{
   flex-direction:column;
   align-items:center;
   font-family:sans-serif;
-  user-select:none;
 }
 canvas{
   background:#fffbe6;
   border:3px solid #444;
-}
-#score,#order{
-  width:360px;
-  margin-top:6px;
-}
-#order{
-  display:flex;
-  flex-wrap:wrap;
-  gap:4px;
-}
-.orderBall{
-  border-radius:50%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  font-size:11px;
-  font-weight:bold;
 }
 </style>
 </head>
 <body>
 
 <canvas id="game" width="360" height="600"></canvas>
-<div id="score"></div>
-<div id="order"></div>
 
 <script>
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
-const scoreDiv=document.getElementById("score");
-const orderDiv=document.getElementById("order");
 
-const GRAVITY=0.8;
+const GRAVITY=0.6;
+const FRICTION=0.985;
 const RED_LINE=80;
 
+let targetX=180;
+let previewX=180;
 let shake=0;
 
-// 球資料（放大後）
 const fruits=[
  {r:20,c:"#f00",s:10},{r:24,c:"#f80",s:20},{r:28,c:"#ff0",s:40},
  {r:32,c:"#7f0",s:80},{r:36,c:"#0f0",s:160},{r:40,c:"#0f7",s:320},
@@ -63,7 +43,9 @@ const fruits=[
 
 class Ball{
   constructor(x,y,t){
-    this.x=x; this.y=y;
+    this.x=x;
+    this.y=y;
+    this.vx=0;
     this.vy=0;
     this.t=t;
     this.scale=1;
@@ -73,13 +55,52 @@ class Ball{
 
   update(){
     this.vy+=GRAVITY;
+    this.x+=this.vx;
     this.y+=this.vy;
 
-    const landY=findLandingY(this);
-    if(this.y>landY){
-      this.y=landY;
+    // 牆壁
+    if(this.x-this.r<0){this.x=this.r; this.vx*=-0.5;}
+    if(this.x+this.r>canvas.width){this.x=canvas.width-this.r; this.vx*=-0.5;}
+
+    // 地板
+    if(this.y+this.r>canvas.height){
+      this.y=canvas.height-this.r;
       this.vy=0;
+      this.vx*=0.9;
     }
+
+    // 球碰撞
+    for(const o of balls){
+      if(o===this) continue;
+      const dx=this.x-o.x;
+      const dy=this.y-o.y;
+      const d=Math.hypot(dx,dy);
+      const min=this.r+o.r;
+
+      if(d<min && d>0){
+        const nx=dx/d, ny=dy/d;
+        const overlap=min-d;
+
+        this.x+=nx*overlap/2;
+        this.y+=ny*overlap/2;
+        o.x-=nx*overlap/2;
+        o.y-=ny*overlap/2;
+
+        // 側向滾動
+        this.vx+=nx*0.6;
+        o.vx-=nx*0.6;
+
+        // 合成
+        if(this.color===o.color){
+          merge(this,o);
+          return;
+        }
+      }
+    }
+
+    // 摩擦
+    this.vx*=FRICTION;
+    this.scale+=(1-this.scale)*0.2;
   }
 
   draw(){
@@ -92,74 +113,36 @@ class Ball{
     ctx.fill();
     ctx.stroke();
     ctx.restore();
-    this.scale+= (1-this.scale)*0.15;
   }
-}
-
-function findLandingY(ball){
-  let y = canvas.height - ball.r;
-  for(const other of balls){
-    if(other===ball) continue;
-    const dx=Math.abs(other.x-ball.x);
-    const min=ball.r+other.r;
-    if(dx<min){
-      y=Math.min(y, other.y - min);
-    }
-  }
-  return y;
 }
 
 let balls=[];
-let score=0;
-let high=localStorage.getItem("melonHigh")||0;
-
-let targetX=180;
-let previewX=180;
 let next=Math.floor(Math.random()*3);
-
-function clampX(x,r){
-  return Math.max(r, Math.min(canvas.width-r, x));
-}
 
 function drop(){
   balls.push(new Ball(previewX,RED_LINE+50,next));
   next=Math.floor(Math.random()*3);
 }
 
-function mergeCheck(){
-  for(let i=0;i<balls.length;i++){
-    for(let j=i+1;j<balls.length;j++){
-      const a=balls[i],b=balls[j];
-      const d=Math.hypot(a.x-b.x,a.y-b.y);
-      if(a.color===b.color && d<a.r+b.r){
-        merge(a,b);
-        return;
-      }
-    }
-  }
-}
-
 function merge(a,b){
   const nx=(a.x+b.x)/2;
-  const ny=Math.min(a.y,b.y);
-  score+=fruits[a.t].s;
-  high=Math.max(high,score);
-  localStorage.setItem("melonHigh",high);
+  const ny=(a.y+b.y)/2;
   balls=balls.filter(x=>x!==a&&x!==b);
-  const nb=new Ball(nx,ny,a.t+1);
-  nb.scale=1.4;
-  balls.push(nb);
+  if(a.t+1<fruits.length){
+    const nb=new Ball(nx,ny,a.t+1);
+    nb.vy=-2;
+    nb.scale=1.4;
+    balls.push(nb);
+  }
   shake=8;
 }
 
-canvas.addEventListener("mousemove",e=>{
-  targetX=clampX(e.offsetX, fruits[next].r);
-});
+// 操作
+canvas.addEventListener("mousemove",e=>targetX=e.offsetX);
 canvas.addEventListener("click",drop);
 canvas.addEventListener("touchmove",e=>{
-  const rect=canvas.getBoundingClientRect();
-  targetX=clampX(e.touches[0].clientX-rect.left, fruits[next].r);
-},{passive:false});
+  targetX=e.touches[0].clientX-canvas.getBoundingClientRect().left;
+});
 canvas.addEventListener("touchend",drop);
 
 function loop(){
@@ -171,17 +154,16 @@ function loop(){
   ctx.clearRect(0,0,360,600);
 
   // 紅線警告
-  let warn=balls.some(b=>b.y-b.r<RED_LINE+20);
-  ctx.strokeStyle=warn&&Math.sin(Date.now()/120)>0?"#f00":"#faa";
+  const warn=balls.some(b=>b.y-b.r<RED_LINE+20);
+  ctx.strokeStyle=warn&&Math.sin(Date.now()/100)>0?"#f00":"#faa";
   ctx.lineWidth=3;
   ctx.beginPath();
   ctx.moveTo(0,RED_LINE);
   ctx.lineTo(360,RED_LINE);
   ctx.stroke();
 
-  previewX += (targetX-previewX)*0.25;
-  previewX = clampX(previewX, fruits[next].r);
-
+  // 預覽球（彈性）
+  previewX+= (targetX-previewX)*0.25;
   const p=fruits[next];
   ctx.beginPath();
   ctx.arc(previewX,45,p.r*1.2,0,Math.PI*2);
@@ -189,24 +171,10 @@ function loop(){
   ctx.fill();
   ctx.stroke();
 
-  balls.forEach(b=>b.update());
-  mergeCheck();
-  balls.forEach(b=>b.draw());
-
-  scoreDiv.innerText=`分數: ${score}　最高分: ${high}`;
+  balls.forEach(b=>{b.update();b.draw();});
   requestAnimationFrame(loop);
 }
 loop();
-
-// 合成順序
-fruits.forEach((f,i)=>{
-  const d=document.createElement("div");
-  d.className="orderBall";
-  d.style.width=d.style.height=f.r*0.9+"px";
-  d.style.background=f.c;
-  d.innerText=i+1;
-  orderDiv.appendChild(d);
-});
 </script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（穩定版）</title>
+<title>合成水果遊戲（滑動控制最終版）</title>
 
 <style>
 body{
@@ -85,12 +85,16 @@ button{
 <div id="fruitSequence"></div>
 
 <script>
+/* ===== 工具 ===== */
+const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+
+/* ===== 基本設定 ===== */
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const startScreen = document.getElementById("startScreen");
 
 const GRAVITY = 0.35;
-const MAX_VY = 8;        // ★ 最大下落速度
+const MAX_VY = 8;
 const RED_LINE = 60;
 
 let gameStarted=false;
@@ -99,6 +103,7 @@ let score=0;
 let dropX=canvas.width/2;
 let canDrop=true;
 
+/* ===== 水果 ===== */
 const fruits=[
   {r:22,color:"#ff7676",score:10},
   {r:26,color:"#ff9f43",score:20},
@@ -108,6 +113,7 @@ const fruits=[
   {r:44,color:"#5f27cd",score:320}
 ];
 
+/* ===== 球 ===== */
 class Ball{
   constructor(x,y,type){
     this.x=x;
@@ -121,9 +127,13 @@ class Ball{
   update(){
     if(!this.settled){
       this.vy+=GRAVITY;
-      this.vy=Math.min(this.vy,MAX_VY); // ★ 限速
+      this.vy=Math.min(this.vy,MAX_VY);
       this.y+=this.vy;
     }
+
+    // 左右邊界（★重點）
+    this.x = clamp(this.x, this.r, canvas.width - this.r);
+
     if(this.y+this.r>=canvas.height){
       this.y=canvas.height-this.r;
       this.vy=0;
@@ -143,40 +153,42 @@ class Ball{
 let balls=[];
 let nextFruit=Math.floor(Math.random()*3);
 
-/* 開始 */
+/* ===== 開始 ===== */
 startScreen.onclick=()=>{
   gameStarted=true;
   startScreen.style.display="none";
 };
 
-/* 控制 */
-function moveX(clientX){
-  const r=canvas.getBoundingClientRect();
-  dropX=clientX-r.left;
-  dropX=Math.max(20,Math.min(canvas.width-20,dropX));
+/* ===== 控制（只移動、不掉落） ===== */
+function movePreview(clientX){
+  const rect=canvas.getBoundingClientRect();
+  const r=fruits[nextFruit].r;
+  dropX = clamp(clientX - rect.left, r, canvas.width - r);
 }
 
+/* 電腦 */
+canvas.addEventListener("mousemove",e=>{
+  if(gameStarted) movePreview(e.clientX);
+});
+
+canvas.addEventListener("click",()=>{
+  if(gameStarted && canDrop && !gameOver) drop();
+});
+
+/* 手機 */
 canvas.addEventListener("touchmove",e=>{
   if(!gameStarted) return;
   e.preventDefault();
-  moveX(e.touches[0].clientX);
+  movePreview(e.touches[0].clientX);
 },{passive:false});
 
 canvas.addEventListener("touchstart",e=>{
-  if(!gameStarted||gameOver||!canDrop) return;
+  if(!gameStarted||!canDrop||gameOver) return;
   e.preventDefault();
   drop();
 },{passive:false});
 
-canvas.addEventListener("mousemove",e=>{
-  if(gameStarted) moveX(e.clientX);
-});
-
-canvas.addEventListener("click",()=>{
-  if(gameStarted&&canDrop) drop();
-});
-
-/* 投放 */
+/* ===== 掉落 ===== */
 function drop(){
   canDrop=false;
   balls.push(new Ball(dropX,RED_LINE+40,nextFruit));
@@ -184,7 +196,7 @@ function drop(){
   setTimeout(()=>canDrop=true,400);
 }
 
-/* 碰撞修正（多次） */
+/* ===== 碰撞修正 ===== */
 function fixOverlap(){
   for(let i=0;i<balls.length;i++){
     for(let j=i+1;j<balls.length;j++){
@@ -194,16 +206,15 @@ function fixOverlap(){
       const min=a.r+b.r;
       if(d<min&&d>0){
         const nx=dx/d,ny=dy/d,o=(min-d)/2;
-        a.x-=nx*o; a.y-=ny*o;
-        b.x+=nx*o; b.y+=ny*o;
-        if(a.settled&& !b.settled) b.settled=true;
-        if(b.settled&& !a.settled) a.settled=true;
+        a.x-=nx*o; b.x+=nx*o;
+        a.x=clamp(a.x,a.r,canvas.width-a.r);
+        b.x=clamp(b.x,b.r,canvas.width-b.r);
       }
     }
   }
 }
 
-/* 合成 */
+/* ===== 合成 ===== */
 function merge(){
   for(let i=0;i<balls.length;i++){
     for(let j=i+1;j<balls.length;j++){
@@ -211,8 +222,13 @@ function merge(){
       if(a.type===b.type&&Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r){
         const nx=(a.x+b.x)/2,ny=(a.y+b.y)/2;
         const nt=a.type+1;
-        balls.splice(j,1); balls.splice(i,1);
-        if(nt<fruits.length) balls.push(new Ball(nx,ny,nt));
+        balls.splice(j,1);balls.splice(i,1);
+        if(nt<fruits.length){
+          balls.push(new Ball(
+            clamp(nx,fruits[nt].r,canvas.width-fruits[nt].r),
+            ny,nt
+          ));
+        }
         score+=fruits[a.type].score;
         return;
       }
@@ -220,7 +236,7 @@ function merge(){
   }
 }
 
-/* Game Over */
+/* ===== Game Over ===== */
 function checkGameOver(){
   for(const b of balls){
     if(b.settled&&b.y-b.r<RED_LINE){
@@ -230,10 +246,11 @@ function checkGameOver(){
   }
 }
 
-/* UI */
+/* ===== UI ===== */
 function drawUI(){
   ctx.fillStyle="#000";
   ctx.fillText("分數："+score,10,20);
+
   ctx.setLineDash([6,6]);
   ctx.strokeStyle="red";
   ctx.beginPath();
@@ -241,6 +258,7 @@ function drawUI(){
   ctx.lineTo(canvas.width,RED_LINE);
   ctx.stroke();
   ctx.setLineDash([]);
+
   const f=fruits[nextFruit];
   ctx.beginPath();
   ctx.arc(dropX,RED_LINE+40,f.r,0,Math.PI*2);
@@ -248,7 +266,7 @@ function drawUI(){
   ctx.fill();
 }
 
-/* 合成順序 */
+/* ===== 合成順序 ===== */
 const seq=document.getElementById("fruitSequence");
 fruits.forEach((f,i)=>{
   const d=document.createElement("div");
@@ -264,16 +282,16 @@ fruits.forEach((f,i)=>{
   seq.appendChild(d);
 });
 
-/* 重新開始 */
+/* ===== 重新開始 ===== */
 function restart(){
-  balls=[]; score=0; gameOver=false;
+  balls=[];score=0;gameOver=false;
 }
 
-/* 主迴圈 */
+/* ===== 主迴圈 ===== */
 function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   balls.forEach(b=>{b.update();b.draw();});
-  for(let i=0;i<3;i++) fixOverlap(); // ★ 多次修正
+  for(let i=0;i<3;i++) fixOverlap();
   merge();
   drawUI();
   checkGameOver();

@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（最終可玩版）</title>
+<title>合成水果遊戲（進化完成版）</title>
 <style>
 body{
   margin:0;
@@ -17,16 +17,14 @@ canvas{
   background:#fffbe6;
   border:3px solid #444;
 }
-#score{
+#score,#order{
   width:360px;
-  margin-top:8px;
+  margin-top:6px;
 }
 #order{
-  width:360px;
   display:flex;
   flex-wrap:wrap;
   gap:4px;
-  margin-top:6px;
 }
 .orderBall{
   border-radius:50%;
@@ -41,123 +39,139 @@ canvas{
 <body>
 
 <canvas id="game" width="360" height="600"></canvas>
-<div id="score">分數: 0　最高分: 0</div>
+<div id="score"></div>
 <div id="order"></div>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const scoreDiv = document.getElementById("score");
-const orderDiv = document.getElementById("order");
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const scoreDiv=document.getElementById("score");
+const orderDiv=document.getElementById("order");
 
-const GRAVITY = 0.6;
-const RED_LINE = 70;
+const GRAVITY=0.7;
+const RED_LINE=80;
 
-const fruits = [
- {r:16,c:"#f00",s:10},{r:20,c:"#f80",s:20},{r:24,c:"#ff0",s:40},
- {r:28,c:"#7f0",s:80},{r:32,c:"#0f0",s:160},{r:36,c:"#0f7",s:320},
- {r:40,c:"#0ff",s:640},{r:44,c:"#07f",s:1280},{r:48,c:"#00f",s:2560},
- {r:52,c:"#70f",s:5120},{r:56,c:"#f0f",s:10240},{r:60,c:"#f07",s:20480}
+let shake=0;
+
+// 球資料（全部放大）
+const fruits=[
+ {r:20,c:"#f00",s:10},{r:24,c:"#f80",s:20},{r:28,c:"#ff0",s:40},
+ {r:32,c:"#7f0",s:80},{r:36,c:"#0f0",s:160},{r:40,c:"#0f7",s:320},
+ {r:44,c:"#0ff",s:640},{r:48,c:"#07f",s:1280},{r:52,c:"#00f",s:2560},
+ {r:56,c:"#70f",s:5120},{r:60,c:"#f0f",s:10240},{r:64,c:"#f07",s:20480}
 ];
 
 class Ball{
   constructor(x,y,t){
     this.x=x; this.y=y; this.vy=0;
     this.t=t; this.settled=false;
+    this.scale=1;
   }
-  get r(){return fruits[this.t].r;}
+  get r(){return fruits[this.t].r*this.scale;}
+  get color(){return fruits[this.t].c;}
+
   update(){
-    if(this.settled) return;
     this.vy+=GRAVITY;
     this.y+=this.vy;
 
     for(const o of balls){
-      if(o===this||!o.settled) continue;
+      if(o===this) continue;
       const dx=this.x-o.x, dy=this.y-o.y;
       const d=Math.hypot(dx,dy);
-      if(d < this.r+o.r){
-        this.y=o.y-(this.r+o.r);
-        this.vy=0;
-        this.settled=true;
+      const min=this.r+o.r;
+
+      if(d<min){
+        if(this.color===o.color){
+          mergeBalls(this,o);
+          return;
+        }else{
+          const nx=dx/d, ny=dy/d;
+          this.x+=nx*1.5;
+          this.y+=ny*1.5;
+        }
       }
     }
+
     if(this.y+this.r>=canvas.height){
       this.y=canvas.height-this.r;
       this.vy=0;
-      this.settled=true;
     }
   }
+
   draw(){
+    ctx.save();
+    ctx.translate(this.x,this.y);
+    ctx.scale(this.scale,this.scale);
     ctx.beginPath();
-    ctx.arc(this.x,this.y,this.r,0,Math.PI*2);
-    ctx.fillStyle=fruits[this.t].c;
+    ctx.arc(0,0,fruits[this.t].r,0,Math.PI*2);
+    ctx.fillStyle=this.color;
     ctx.fill();
     ctx.stroke();
+    ctx.restore();
+    this.scale+= (1-this.scale)*0.15;
   }
 }
 
 let balls=[];
-let dropX=180;
-let next=0;
 let score=0;
 let high=localStorage.getItem("melonHigh")||0;
 
+let targetX=180;
+let previewX=180;
+let next=Math.floor(Math.random()*3);
+
 function drop(){
-  balls.push(new Ball(dropX,RED_LINE+40,next));
+  balls.push(new Ball(previewX,RED_LINE+50,next));
   next=Math.floor(Math.random()*3);
 }
 
-function merge(){
-  for(let i=0;i<balls.length;i++){
-    for(let j=i+1;j<balls.length;j++){
-      const a=balls[i],b=balls[j];
-      if(a.t===b.t){
-        const d=Math.hypot(a.x-b.x,a.y-b.y);
-        if(d < a.r+b.r+2){
-          const nx=(a.x+b.x)/2;
-          const ny=(a.y+b.y)/2;
-          score+=fruits[a.t].s;
-          balls.splice(j,1);
-          balls.splice(i,1);
-          balls.push(new Ball(nx,ny,a.t+1));
-          return;
-        }
-      }
-    }
-  }
+function mergeBalls(a,b){
+  const nx=(a.x+b.x)/2;
+  const ny=(a.y+b.y)/2;
+  score+=fruits[a.t].s;
+  high=Math.max(high,score);
+  localStorage.setItem("melonHigh",high);
+
+  balls=balls.filter(x=>x!==a&&x!==b);
+  const nb=new Ball(nx,ny,a.t+1);
+  nb.scale=1.5;
+  balls.push(nb);
+  shake=8;
 }
 
-canvas.addEventListener("mousemove",e=>{
-  dropX=e.offsetX;
-});
-
+canvas.addEventListener("mousemove",e=>targetX=e.offsetX);
 canvas.addEventListener("click",drop);
-
-// 手機：滑動＝移動，放手＝放球
 canvas.addEventListener("touchmove",e=>{
-  dropX=e.touches[0].clientX-canvas.getBoundingClientRect().left;
+  targetX=e.touches[0].clientX-canvas.getBoundingClientRect().left;
 });
 canvas.addEventListener("touchend",drop);
 
 function loop(){
+  ctx.setTransform(1,0,0,1,0,0);
+  if(shake>0){
+    ctx.translate(Math.random()*6-3,Math.random()*6-3);
+    shake--;
+  }
   ctx.clearRect(0,0,360,600);
 
-  ctx.strokeStyle="red";
+  // 紅線警告
+  let warn=balls.some(b=>b.y-b.r<RED_LINE+20);
+  ctx.strokeStyle=warn&&Math.sin(Date.now()/100)>0?"#f00":"#faa";
+  ctx.lineWidth=3;
   ctx.beginPath();
   ctx.moveTo(0,RED_LINE);
   ctx.lineTo(360,RED_LINE);
   ctx.stroke();
 
-  balls.forEach(b=>{b.update();b.draw();});
-  merge();
-
+  previewX+= (targetX-previewX)*0.25;
   const p=fruits[next];
   ctx.beginPath();
-  ctx.arc(dropX,40,p.r*1.2,0,Math.PI*2);
+  ctx.arc(previewX,45,p.r*1.2,0,Math.PI*2);
   ctx.fillStyle=p.c;
   ctx.fill();
   ctx.stroke();
 
+  balls.forEach(b=>{b.update();b.draw();});
   scoreDiv.innerText=`分數: ${score}　最高分: ${high}`;
   requestAnimationFrame(loop);
 }
@@ -167,7 +181,7 @@ loop();
 fruits.forEach((f,i)=>{
   const d=document.createElement("div");
   d.className="orderBall";
-  d.style.width=d.style.height=f.r*1.4+"px";
+  d.style.width=d.style.height=f.r*0.9+"px";
   d.style.background=f.c;
   d.innerText=i+1;
   orderDiv.appendChild(d);

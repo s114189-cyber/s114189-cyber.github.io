@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（升級版+分數）</title>
+<title>合成水果遊戲（12球+堆疊+分數）</title>
 <style>
 body{
   margin:0;
@@ -75,14 +75,20 @@ let dropX=canvas.width/2;
 let score=0;
 let highScore=localStorage.getItem("melonHighScore") || 0;
 
-/* ===== 水果 ===== (球變大) ===== */
+/* ===== 水果 (12種，彩虹順序) ===== */
 const fruits=[
-  {r:32,color:"#ff7676",score:10},
-  {r:36,color:"#ff9f43",score:20},
-  {r:40,color:"#feca57",score:40},
-  {r:44,color:"#1dd1a1",score:80},
-  {r:48,color:"#48dbfb",score:160},
-  {r:54,color:"#5f27cd",score:320}
+  {r:28,color:"#ff0000",score:10},   // 紅
+  {r:30,color:"#ff7f00",score:20},   // 橙
+  {r:32,color:"#ffff00",score:40},   // 黃
+  {r:34,color:"#7fff00",score:80},   // 黃綠
+  {r:36,color:"#00ff00",score:160},  // 綠
+  {r:38,color:"#00ff7f",score:320},  // 青綠
+  {r:40,color:"#00ffff",score:640},  // 青
+  {r:42,color:"#007fff",score:1280}, // 藍
+  {r:44,color:"#0000ff",score:2560}, // 靛
+  {r:46,color:"#7f00ff",score:5120}, // 紫
+  {r:48,color:"#ff00ff",score:10240},// 品紅
+  {r:50,color:"#ff007f",score:20480} // 桃紅
 ];
 
 /* ===== 球 ===== */
@@ -101,7 +107,7 @@ class Ball{
       this.vy=Math.min(this.vy+GRAVITY,MAX_VY);
       this.y+=this.vy;
 
-      // 碰到已沉底的球就堆疊
+      // 往上堆疊
       for(const other of balls){
         if(other===this || !other.settled) continue;
         const dx=this.x-other.x;
@@ -109,9 +115,8 @@ class Ball{
         const dist=Math.hypot(dx,dy);
         const minDist=this.r+other.r;
         if(dist<minDist){
-          const angle=Math.atan2(dy,dx);
-          this.x=other.x + Math.cos(angle)*minDist;
-          this.y=other.y + Math.sin(angle)*minDist;
+          // 將球放在碰到球上方
+          this.y = other.y - minDist + 1;
           this.vy=0;
           this.settled=true;
         }
@@ -138,7 +143,7 @@ class Ball{
 }
 
 let balls=[];
-let nextFruit=Math.floor(Math.random()*3); // 掉落球只能 0,1,2
+let nextFruit=Math.floor(Math.random()*3); // 掉落球只能 0~2
 
 /* ===== 開始 ===== */
 startScreen.onclick=()=>{
@@ -153,50 +158,19 @@ function movePreview(clientX){
   dropX=clamp(clientX-rect.left,r,canvas.width-r);
 }
 
-/* --- 電腦 --- */
-canvas.addEventListener("mousemove",e=>{
-  if(gameStarted) movePreview(e.clientX);
-});
-
-canvas.addEventListener("click",()=>{
-  if(gameStarted && !gameOver && canDrop){
-    drop();
-  }
-});
-
-/* --- 手機 --- */
-let touchStartX=0;
-let moved=false;
-
-canvas.addEventListener("touchstart",e=>{
-  if(!gameStarted||gameOver) return;
-  touchStartX=e.touches[0].clientX;
-  moved=false;
-},{passive:false});
-
-canvas.addEventListener("touchmove",e=>{
-  if(!gameStarted) return;
-  e.preventDefault();
-  moved=true;
-  movePreview(e.touches[0].clientX);
-},{passive:false});
-
-canvas.addEventListener("touchend",e=>{
-  if(!gameStarted||gameOver) return;
-  if(!moved && canDrop){
-    drop();
-  }
-},{passive:false});
+/* ===== 事件 ===== */
+canvas.addEventListener("mousemove",e=>{if(gameStarted) movePreview(e.clientX);});
+canvas.addEventListener("click",()=>{if(gameStarted && !gameOver && canDrop) drop();});
+canvas.addEventListener("touchstart",e=>{if(!gameStarted||gameOver) return; moved=false;}, {passive:false});
+canvas.addEventListener("touchmove",e=>{if(!gameStarted) {e.preventDefault(); moved=true; movePreview(e.touches[0].clientX);}}, {passive:false});
+canvas.addEventListener("touchend",e=>{if(!gameStarted||gameOver) return; if(!moved && canDrop) drop();}, {passive:false});
 
 /* ===== 掉落 ===== */
 function drop(){
   if(!canDrop) return;
   canDrop=false;
   balls.push(new Ball(dropX, RED_LINE+60, nextFruit));
-
-  // 下一顆球只能掉落 0,1,2
-  nextFruit = Math.floor(Math.random() * 3);
-
+  nextFruit = Math.floor(Math.random()*3); // 0~2
   setTimeout(()=>canDrop=true,400);
 }
 
@@ -234,10 +208,7 @@ function merge(){
         }
         balls.splice(j,1); balls.splice(i,1);
         if(nt<fruits.length){
-          balls.push(new Ball(
-            clamp(nx,fruits[nt].r,canvas.width-fruits[nt].r),
-            ny,nt
-          ));
+          balls.push(new Ball(clamp(nx,fruits[nt].r,canvas.width-fruits[nt].r), ny, nt));
         }
         return;
       }
@@ -262,19 +233,30 @@ function checkGameOver(){
 /* ===== 主迴圈 ===== */
 function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // 畫球
   balls.forEach(b=>{b.update();b.draw();});
-
   for(let i=0;i<3;i++) fixOverlap();
   merge();
   checkGameOver();
 
-  // 畫分數（左上角，同一邊）
+  // 分數顯示
   ctx.fillStyle="#000";
   ctx.font="18px sans-serif";
   ctx.fillText("分數: "+score,10,20);
   ctx.fillText("最高分: "+highScore,10,45);
+
+  // 合成順序表 (2排顯示)
+  ctx.font="14px sans-serif";
+  let x=10,y=canvas.height-80;
+  for(let i=0;i<fruits.length;i++){
+    ctx.fillStyle=fruits[i].color;
+    ctx.beginPath();
+    ctx.arc(x+15, y+15, 12,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle="#000";
+    ctx.fillText((i+1), x+8, y+40);
+    x+=30;
+    if(x>canvas.width-30){x=10;y+=40;}
+  }
 
   if(gameOver){
     ctx.fillStyle="#000";

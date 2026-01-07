@@ -70,7 +70,7 @@
   <button onclick="restartConfirm()">重新開始</button>
 </div>
 
-<!-- 水果合成順序圖（遊戲框外面） -->
+<!-- 水果合成順序圖 -->
 <div id="fruitSequence"></div>
 
 <script>
@@ -89,14 +89,14 @@ let gameStarted = false;
 let dropX = canvas.width / 2;
 
 const fruits = [
-  { r: 12, color: "#ff7676", score: 10 },
-  { r: 16, color: "#ff9f43", score: 20 },
-  { r: 20, color: "#feca57", score: 40 },
-  { r: 24, color: "#1dd1a1", score: 80 },
-  { r: 28, color: "#48dbfb", score: 160 },
-  { r: 34, color: "#5f27cd", score: 320 },
-  { r: 40, color: "#2ecc71", score: 640 },
-  { r: 46, color: "#27ae60", score: 1280 }
+  { r: 16, color: "#ff7676", score: 10 },
+  { r: 20, color: "#ff9f43", score: 20 },
+  { r: 24, color: "#feca57", score: 40 },
+  { r: 28, color: "#1dd1a1", score: 80 },
+  { r: 32, color: "#48dbfb", score: 160 },
+  { r: 38, color: "#5f27cd", score: 320 },
+  { r: 44, color: "#2ecc71", score: 640 },
+  { r: 50, color: "#27ae60", score: 1280 }
 ];
 
 class Ball {
@@ -147,6 +147,8 @@ canvas.addEventListener("mousemove", e => {
   if(!gameStarted) return;
   const r = canvas.getBoundingClientRect();
   dropX = e.clientX - r.left;
+  // 移動邊界
+  dropX = Math.max(fruits[nextFruit].r, Math.min(canvas.width - fruits[nextFruit].r, dropX));
 });
 canvas.addEventListener("click", e => { if(gameStarted) dropFruit(); });
 canvas.addEventListener("touchstart", e => {
@@ -154,6 +156,7 @@ canvas.addEventListener("touchstart", e => {
   e.preventDefault();
   const r = canvas.getBoundingClientRect();
   dropX = e.touches[0].clientX - r.left;
+  dropX = Math.max(fruits[nextFruit].r, Math.min(canvas.width - fruits[nextFruit].r, dropX));
   dropFruit();
 },{ passive:false });
 canvas.addEventListener("touchmove", e => {
@@ -161,11 +164,12 @@ canvas.addEventListener("touchmove", e => {
   e.preventDefault();
   const r = canvas.getBoundingClientRect();
   dropX = e.touches[0].clientX - r.left;
+  dropX = Math.max(fruits[nextFruit].r, Math.min(canvas.width - fruits[nextFruit].r, dropX));
 },{ passive:false });
 
 function dropFruit(){
   if(gameOver) return;
-  balls.push(new Ball(dropX, RED_LINE + 20, nextFruit));
+  balls.push(new Ball(dropX, RED_LINE + 15, nextFruit));
   nextFruit = Math.floor(Math.random() * 3);
 }
 
@@ -207,7 +211,9 @@ function merge(){
 }
 
 function checkGameOver(){
-  balls.forEach(b=>{ if(b.vy<0.5 && b.y-b.r<RED_LINE) gameOver=true; });
+  balls.forEach(b=>{
+    if(b.y - b.r < RED_LINE - 5 && b.vy > -0.1) gameOver=true;
+  });
 }
 
 /* ===== UI ===== */
@@ -225,10 +231,10 @@ function drawUI(){
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // 預覽球（只顯示位置）
+  // 預覽球（放下面一點）
   const f=fruits[nextFruit];
   ctx.beginPath();
-  ctx.arc(dropX, RED_LINE-20, f.r,0,Math.PI*2);
+  ctx.arc(dropX, RED_LINE + 15, f.r,0,Math.PI*2);
   ctx.fillStyle=f.color;
   ctx.fill();
 }

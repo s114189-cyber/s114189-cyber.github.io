@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（滑動控制最終版）</title>
+<title>合成水果遊戲（最終修正版）</title>
 
 <style>
 body{
@@ -46,30 +46,6 @@ button{
   right:10px;
   z-index:5;
 }
-
-#sequenceTitle{
-  margin-top:30px;
-  font-size:14px;
-}
-
-#fruitSequence{
-  margin-top:12px;
-  display:flex;
-  align-items:flex-end;
-  height:80px;
-}
-
-.fruit-icon{
-  width:50px;
-  text-align:center;
-  font-size:12px;
-  margin:0 5px;
-}
-
-.circle{
-  border-radius:50%;
-  margin:auto;
-}
 </style>
 </head>
 
@@ -81,27 +57,24 @@ button{
   <button onclick="restart()">重新開始</button>
 </div>
 
-<div id="sequenceTitle">合成順序</div>
-<div id="fruitSequence"></div>
-
 <script>
 /* ===== 工具 ===== */
-const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 
-/* ===== 基本設定 ===== */
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-const startScreen = document.getElementById("startScreen");
+/* ===== 基本 ===== */
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const startScreen=document.getElementById("startScreen");
 
-const GRAVITY = 0.35;
-const MAX_VY = 8;
-const RED_LINE = 60;
+const GRAVITY=0.4;
+const MAX_VY=9;
+const RED_LINE=60;
 
 let gameStarted=false;
 let gameOver=false;
-let score=0;
-let dropX=canvas.width/2;
 let canDrop=true;
+let dropX=canvas.width/2;
+let score=0;
 
 /* ===== 水果 ===== */
 const fruits=[
@@ -126,13 +99,10 @@ class Ball{
 
   update(){
     if(!this.settled){
-      this.vy+=GRAVITY;
-      this.vy=Math.min(this.vy,MAX_VY);
+      this.vy=Math.min(this.vy+GRAVITY,MAX_VY);
       this.y+=this.vy;
     }
-
-    // 左右邊界（★重點）
-    this.x = clamp(this.x, this.r, canvas.width - this.r);
+    this.x=clamp(this.x,this.r,canvas.width-this.r);
 
     if(this.y+this.r>=canvas.height){
       this.y=canvas.height-this.r;
@@ -159,33 +129,46 @@ startScreen.onclick=()=>{
   startScreen.style.display="none";
 };
 
-/* ===== 控制（只移動、不掉落） ===== */
+/* ===== 控制 ===== */
 function movePreview(clientX){
   const rect=canvas.getBoundingClientRect();
   const r=fruits[nextFruit].r;
-  dropX = clamp(clientX - rect.left, r, canvas.width - r);
+  dropX=clamp(clientX-rect.left,r,canvas.width-r);
 }
 
-/* 電腦 */
+/* --- 電腦 --- */
 canvas.addEventListener("mousemove",e=>{
   if(gameStarted) movePreview(e.clientX);
 });
 
 canvas.addEventListener("click",()=>{
-  if(gameStarted && canDrop && !gameOver) drop();
+  if(gameStarted && !gameOver && canDrop){
+    drop();
+  }
 });
 
-/* 手機 */
+/* --- 手機（區分點擊 / 滑動） --- */
+let touchStartX=0;
+let moved=false;
+
+canvas.addEventListener("touchstart",e=>{
+  if(!gameStarted||gameOver) return;
+  touchStartX=e.touches[0].clientX;
+  moved=false;
+},{passive:false});
+
 canvas.addEventListener("touchmove",e=>{
   if(!gameStarted) return;
   e.preventDefault();
+  moved=true;
   movePreview(e.touches[0].clientX);
 },{passive:false});
 
-canvas.addEventListener("touchstart",e=>{
-  if(!gameStarted||!canDrop||gameOver) return;
-  e.preventDefault();
-  drop();
+canvas.addEventListener("touchend",e=>{
+  if(!gameStarted||gameOver) return;
+  if(!moved && canDrop){
+    drop();
+  }
 },{passive:false});
 
 /* ===== 掉落 ===== */
@@ -219,17 +202,18 @@ function merge(){
   for(let i=0;i<balls.length;i++){
     for(let j=i+1;j<balls.length;j++){
       const a=balls[i],b=balls[j];
-      if(a.type===b.type&&Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r){
-        const nx=(a.x+b.x)/2,ny=(a.y+b.y)/2;
+      if(a.type===b.type && Math.hypot(a.x-b.x,a.y-b.y)<a.r+b.r){
+        const nx=(a.x+b.x)/2;
+        const ny=(a.y+b.y)/2;
         const nt=a.type+1;
-        balls.splice(j,1);balls.splice(i,1);
+        score+=fruits[a.type].score;
+        balls.splice(j,1); balls.splice(i,1);
         if(nt<fruits.length){
           balls.push(new Ball(
             clamp(nx,fruits[nt].r,canvas.width-fruits[nt].r),
             ny,nt
           ));
         }
-        score+=fruits[a.type].score;
         return;
       }
     }
@@ -239,52 +223,11 @@ function merge(){
 /* ===== Game Over ===== */
 function checkGameOver(){
   for(const b of balls){
-    if(b.settled&&b.y-b.r<RED_LINE){
+    if(b.settled && b.y-b.r<RED_LINE){
       gameOver=true;
       return;
     }
   }
-}
-
-/* ===== UI ===== */
-function drawUI(){
-  ctx.fillStyle="#000";
-  ctx.fillText("分數："+score,10,20);
-
-  ctx.setLineDash([6,6]);
-  ctx.strokeStyle="red";
-  ctx.beginPath();
-  ctx.moveTo(0,RED_LINE);
-  ctx.lineTo(canvas.width,RED_LINE);
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  const f=fruits[nextFruit];
-  ctx.beginPath();
-  ctx.arc(dropX,RED_LINE+40,f.r,0,Math.PI*2);
-  ctx.fillStyle=f.color;
-  ctx.fill();
-}
-
-/* ===== 合成順序 ===== */
-const seq=document.getElementById("fruitSequence");
-fruits.forEach((f,i)=>{
-  const d=document.createElement("div");
-  d.className="fruit-icon";
-  const c=document.createElement("div");
-  c.className="circle";
-  c.style.width=c.style.height=f.r*2+"px";
-  c.style.background=f.color;
-  d.appendChild(c);
-  const t=document.createElement("div");
-  t.textContent=i+1;
-  d.appendChild(t);
-  seq.appendChild(d);
-});
-
-/* ===== 重新開始 ===== */
-function restart(){
-  balls=[];score=0;gameOver=false;
 }
 
 /* ===== 主迴圈 ===== */
@@ -293,12 +236,20 @@ function loop(){
   balls.forEach(b=>{b.update();b.draw();});
   for(let i=0;i<3;i++) fixOverlap();
   merge();
-  drawUI();
   checkGameOver();
-  if(gameOver) ctx.fillText("Game Over",130,300);
+  if(gameOver){
+    ctx.fillText("Game Over",130,300);
+  }
   requestAnimationFrame(loop);
 }
 loop();
+
+/* ===== 重新開始 ===== */
+function restart(){
+  balls=[];
+  score=0;
+  gameOver=false;
+}
 </script>
 
 </body>

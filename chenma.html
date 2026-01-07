@@ -35,7 +35,7 @@
     cursor: pointer;
   }
   #fruitSequence {
-    margin-top: 10px; /* 黑框下方 */
+    margin-top: 10px; /* 黑框外 */
     display: flex;
     justify-content: center;
     align-items: flex-end;
@@ -70,7 +70,7 @@
   <button onclick="restartConfirm()">重新開始</button>
 </div>
 
-<div id="fruitSequence"></div>
+<div id="fruitSequence"></div> <!-- 黑框外 -->
 
 <script>
 const canvas = document.getElementById("game");
@@ -227,10 +227,11 @@ function drawUI(){
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // 預覽球（紅線下方）
+  // 預覽球（全部顏色都在紅線下方）
   const f=fruits[nextFruit];
+  const previewY = RED_LINE + 25 + f.r; // 確保球底部在紅線下
   ctx.beginPath();
-  ctx.arc(dropX, RED_LINE + 25 + f.r, f.r,0,Math.PI*2);
+  ctx.arc(dropX, previewY, f.r,0,Math.PI*2);
   ctx.fillStyle=f.color;
   ctx.fill();
 }
@@ -278,3 +279,4 @@ loop();
 </script>
 </body>
 </html>
+

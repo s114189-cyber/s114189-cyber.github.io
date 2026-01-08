@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（自由滑動+堆疊版）</title>
+<title>合成大西瓜（有臉版）</title>
 <style>
 body{
   margin:0;
@@ -34,9 +34,7 @@ canvas{
   font-size:11px;
   font-weight:bold;
 }
-button{
-  margin-top:6px;
-}
+button{ margin-top:6px; }
 </style>
 </head>
 <body>
@@ -47,105 +45,147 @@ button{
 <div id="order"></div>
 
 <script>
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
-const scoreDiv=document.getElementById("score");
-const orderDiv=document.getElementById("order");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreDiv = document.getElementById("score");
+const orderDiv = document.getElementById("order");
 
-const GRAVITY=0.7;
-const RED_LINE=80;
+const GRAVITY = 0.7;
+const RED_LINE = 80;
 
-let shake=0;
-let score=0;
-let high=localStorage.getItem("melonHigh")||0;
+let score = 0;
+let shake = 0;
+let high = localStorage.getItem("melonHigh") || 0;
 
-const fruits=[
+const fruits = [
  {r:20,c:"#f00",s:10},{r:24,c:"#f80",s:20},{r:28,c:"#ff0",s:40},
  {r:32,c:"#7f0",s:80},{r:36,c:"#0f0",s:160},{r:40,c:"#0f7",s:320},
  {r:44,c:"#0ff",s:640},{r:48,c:"#07f",s:1280},{r:52,c:"#00f",s:2560},
  {r:56,c:"#70f",s:5120},{r:60,c:"#f0f",s:10240},{r:64,c:"#f07",s:20480}
 ];
 
-const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
 
 class Ball{
   constructor(x,y,t){
-    this.x=x; this.y=y; this.vy=0;
+    this.x=x;
+    this.y=y;
+    this.vy=0;
     this.t=t;
     this.scale=1;
     this.settled=false;
   }
-  get r(){return fruits[this.t].r*this.scale;}
-  get color(){return fruits[this.t].c;}
+
+  get r(){ return fruits[this.t].r * this.scale; }
+  get color(){ return fruits[this.t].c; }
 
   update(){
     if(!this.settled){
-      this.vy+=GRAVITY;
-      this.y+=this.vy;
+      this.vy += GRAVITY;
+      this.y += this.vy;
     }
 
-    // 限制在黑框內
-    this.x=clamp(this.x,this.r,canvas.width-this.r);
+    this.x = clamp(this.x, this.r, canvas.width - this.r);
 
-    // 碰撞和合成
+    // 合成 & 推擠
     for(const o of balls){
-      if(o===this) continue;
-      const dx=this.x-o.x, dy=this.y-o.y;
-      const d=Math.hypot(dx,dy);
-      const min=this.r+o.r;
-      if(d<min && d>0){
-        const nx=dx/d, ny=dy/d;
+      if(o === this) continue;
+      const dx = this.x - o.x;
+      const dy = this.y - o.y;
+      const d = Math.hypot(dx,dy);
+      const min = this.r + o.r;
 
-        if(this.color===o.color){
+      if(d < min && d > 0){
+        const nx = dx / d;
+        const ny = dy / d;
+
+        if(this.t === o.t){
           mergeBalls(this,o);
           return;
-        } else {
-          // 碰到不同色球時只稍微推開
-          const push=0.5;
-          this.x+=nx*push;
-          this.y+=ny*push;
+        }else{
+          const overlap = min - d;
+          this.x += nx * overlap * 0.5;
+          this.y += ny * overlap * 0.5;
         }
       }
     }
 
-    // 堆疊邏輯
+    // 堆疊支撐
     let maxY = canvas.height - this.r;
-let supported = false;
+    let supported = false;
 
-for(const o of balls){
-  if(o === this) continue;
+    for(const o of balls){
+      if(o === this) continue;
+      if(Math.abs(o.x - this.x) < this.r * 1.05 && o.y > this.y){
+        const y = o.y - o.r - this.r;
+        if(y < maxY){
+          maxY = y;
+          supported = true;
+        }
+      }
+    }
 
-  // 判斷是否在正下方
-  if(Math.abs(o.x - this.x) < this.r * 1.05 && o.y > this.y){
-    const y = o.y - o.r - this.r;
-    if(y < maxY){
-      maxY = y;
-      supported = true;
+    if(this.y >= maxY){
+      this.y = maxY;
+      this.vy = 0;
+      this.settled = supported;
+    }else{
+      this.settled = false;
     }
   }
-}
 
-if(this.y >= maxY){
-  this.y = maxY;
-  this.vy = 0;
-  this.settled = supported; // ⭐ 只有真的有支撐才 settled
-} else {
-  this.settled = false; // ⭐ 沒支撐就繼續掉
-}
+  draw(){
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.scale(this.scale, this.scale);
 
- draw(){
-  ctx.save();
-  ctx.translate(this.x,this.y);
-  ctx.scale(this.scale,this.scale);
-  ctx.beginPath();
-  ctx.arc(0,0,fruits[this.t].r,0,Math.PI*2);
-  ctx.fillStyle=this.color;
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-  this.scale+=(1-this.scale)*0.15;
-}
+    const r = fruits[this.t].r;
 
+    // 球
+    ctx.beginPath();
+    ctx.arc(0,0,r,0,Math.PI*2);
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    ctx.strokeStyle="#333";
+    ctx.lineWidth=2;
+    ctx.stroke();
+
+    // 狀態
+    const fastFall = this.vy > 8;
+    const bigFruit = this.t >= 6;
+
+    // 眼睛看方向
+    const lookX = clamp(this.vy * 0.05, -r*0.15, r*0.15);
+    const eyeX = r*0.35;
+    const eyeY = -r*0.25;
+    const eyeR = r*0.1;
+
+    ctx.fillStyle="#000";
+    ctx.beginPath();
+    ctx.arc(-eyeX+lookX, eyeY, eyeR, 0, Math.PI*2);
+    ctx.arc( eyeX+lookX, eyeY, eyeR, 0, Math.PI*2);
+    ctx.fill();
+
+    // 嘴巴
+    ctx.strokeStyle="#000";
+    ctx.lineWidth=r*0.08;
+    ctx.beginPath();
+
+    if(fastFall){
+      ctx.arc(0, r*0.2, r*0.18, 0, Math.PI*2);
+    }else if(bigFruit){
+      ctx.moveTo(-r*0.25, r*0.25);
+      ctx.lineTo( r*0.25, r*0.25);
+    }else{
+      ctx.arc(0, r*0.15, r*0.35, 0, Math.PI);
+    }
+
+    ctx.stroke();
+    ctx.restore();
+
+    this.scale += (1 - this.scale) * 0.15;
+  }
+}
 
 let balls=[];
 let targetX=180;
@@ -156,59 +196,37 @@ let canDrop=true;
 function drop(){
   if(!canDrop) return;
   canDrop=false;
-  balls.push(new Ball(previewX,RED_LINE+50,next));
+  balls.push(new Ball(previewX, RED_LINE+50, next));
   next=Math.floor(Math.random()*3);
   setTimeout(()=>canDrop=true,200);
 }
 
 function mergeBalls(a,b){
-  const nx=(a.x+b.x)/2;
-  const ny=(a.y+b.y)/2;
+  const x=(a.x+b.x)/2;
+  const y=(a.y+b.y)/2;
   score+=fruits[a.t].s;
   high=Math.max(high,score);
   localStorage.setItem("melonHigh",high);
-
-  balls=balls.filter(x=>x!==a&&x!==b);
-  const nb=new Ball(nx,ny,a.t+1);
-  nb.scale=1.5;
-  balls.push(nb);
+  balls=balls.filter(v=>v!==a&&v!==b);
+  const n=new Ball(x,y,a.t+1);
+  n.scale=1.5;
+  balls.push(n);
   shake=8;
 }
 
-// 電腦
-canvas.addEventListener("mousemove",e=>{ targetX=clamp(e.offsetX,0,canvas.width); });
+// 操作
+canvas.addEventListener("mousemove",e=>targetX=clamp(e.offsetX,0,canvas.width));
 canvas.addEventListener("click",drop);
-
-// 手機
-let touching=false;
-canvas.addEventListener("touchstart",e=>{ touching=true; });
-canvas.addEventListener("touchmove",e=>{
-  const rect=canvas.getBoundingClientRect();
-  targetX=clamp(e.touches[0].clientX-rect.left,0,canvas.width);
-});
-canvas.addEventListener("touchend",e=>{
-  if(touching) drop();
-  touching=false;
-});
 
 function loop(){
   ctx.setTransform(1,0,0,1,0,0);
   if(shake>0){ ctx.translate(Math.random()*6-3,Math.random()*6-3); shake--; }
   ctx.clearRect(0,0,360,600);
 
-  // 紅線警告
-  const warn=balls.some(b=>b.y-b.r<RED_LINE+20);
-  ctx.strokeStyle=warn&&Math.sin(Date.now()/120)>0?"#f00":"#faa";
-  ctx.lineWidth=3;
-  ctx.beginPath();
-  ctx.moveTo(0,RED_LINE);
-  ctx.lineTo(360,RED_LINE);
-  ctx.stroke();
+  previewX += (targetX-previewX)*0.25;
+  previewX = clamp(previewX, fruits[next].r, canvas.width-fruits[next].r);
 
-  // 預覽球
-  previewX+=(targetX-previewX)*0.25;
-  previewX=clamp(previewX,fruits[next].r,canvas.width-fruits[next].r);
-  const p=fruits[next];
+  const p = fruits[next];
   ctx.beginPath();
   ctx.arc(previewX,45,p.r*1.2,0,Math.PI*2);
   ctx.fillStyle=p.c;
@@ -216,7 +234,7 @@ function loop(){
   ctx.stroke();
 
   balls.forEach(b=>{b.update();b.draw();});
-  scoreDiv.innerText=`分數: ${score}　最高分: ${high}`;
+  scoreDiv.innerText=`分數:${score}  最高:${high}`;
   requestAnimationFrame(loop);
 }
 loop();
@@ -224,12 +242,10 @@ loop();
 function restart(){
   balls=[];
   score=0;
-  shake=0;
   next=Math.floor(Math.random()*3);
 }
 
 // 合成順序
-orderDiv.innerHTML="";
 fruits.forEach((f,i)=>{
   const d=document.createElement("div");
   d.className="orderBall";
@@ -241,3 +257,4 @@ fruits.forEach((f,i)=>{
 </script>
 </body>
 </html>
+

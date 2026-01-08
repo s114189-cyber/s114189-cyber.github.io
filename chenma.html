@@ -109,20 +109,30 @@ class Ball{
     }
 
     // 堆疊邏輯
-    let maxY=canvas.height-this.r;
-    for(const o of balls){
-      if(o===this) continue;
-      if(Math.abs(o.x-this.x)<this.r*1.1 && o.y>this.y){
-        maxY=Math.min(maxY,o.y-o.r-this.r);
-      }
-    }
+    let maxY = canvas.height - this.r;
+let supported = false;
 
-    if(this.y>maxY){
-      this.y=maxY;
-      this.vy=0;
-      this.settled=true;
+for(const o of balls){
+  if(o === this) continue;
+
+  // 判斷是否在正下方
+  if(Math.abs(o.x - this.x) < this.r * 1.05 && o.y > this.y){
+    const y = o.y - o.r - this.r;
+    if(y < maxY){
+      maxY = y;
+      supported = true;
     }
   }
+}
+
+if(this.y >= maxY){
+  this.y = maxY;
+  this.vy = 0;
+  this.settled = supported; // ⭐ 只有真的有支撐才 settled
+} else {
+  this.settled = false; // ⭐ 沒支撐就繼續掉
+}
+
 
   draw(){
     ctx.save();

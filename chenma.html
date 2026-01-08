@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（可正常合成版）</title>
+<title>合成水果遊戲（進化完成修正版）</title>
 <style>
 body{
   margin:0;
@@ -34,7 +34,9 @@ canvas{
   font-size:11px;
   font-weight:bold;
 }
-button{margin-top:6px;}
+button{
+  margin-top:6px;
+}
 </style>
 </head>
 <body>
@@ -50,15 +52,12 @@ const ctx=canvas.getContext("2d");
 const scoreDiv=document.getElementById("score");
 const orderDiv=document.getElementById("order");
 
-const GRAVITY=0.6;
+const GRAVITY=0.7;
 const RED_LINE=80;
-const MERGE_EPS=2; // 合成容錯
 
 let shake=0;
 let score=0;
 let high=localStorage.getItem("melonHigh")||0;
-
-const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 
 const fruits=[
  {r:20,c:"#f00",s:10},{r:24,c:"#f80",s:20},{r:28,c:"#ff0",s:40},
@@ -67,11 +66,11 @@ const fruits=[
  {r:56,c:"#70f",s:5120},{r:60,c:"#f0f",s:10240},{r:64,c:"#f07",s:20480}
 ];
 
+const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+
 class Ball{
   constructor(x,y,t){
-    this.x=x;
-    this.y=y;
-    this.vy=0;
+    this.x=x; this.y=y; this.vy=0;
     this.t=t;
     this.scale=1;
   }
@@ -80,29 +79,33 @@ class Ball{
 
   update(){
     this.vy+=GRAVITY;
-    let nextY=this.y+this.vy;
+    this.y+=this.vy;
 
+    // 左右限制
     this.x=clamp(this.x,this.r,canvas.width-this.r);
-
-    // 找正下方最近支撐
-    let supportY=canvas.height-this.r;
 
     for(const o of balls){
       if(o===this) continue;
-      const dx=Math.abs(this.x-o.x);
-      if(dx < this.r+o.r-1){
-        const top=o.y-o.r-this.r;
-        if(top>=this.y && top<supportY){
-          supportY=top;
+      const dx=this.x-o.x, dy=this.y-o.y;
+      const d=Math.hypot(dx,dy);
+      const min=this.r+o.r;
+
+      if(d<min && d>0){
+        const nx=dx/d, ny=dy/d;
+
+        if(this.color===o.color){
+          mergeBalls(this,o);
+          return;
+        }else{
+          this.x+=nx;
+          this.y+=ny;
         }
       }
     }
 
-    if(nextY>supportY){
-      this.y=supportY;
+    if(this.y+this.r>=canvas.height){
+      this.y=canvas.height-this.r;
       this.vy=0;
-    }else{
-      this.y=nextY;
     }
   }
 
@@ -134,49 +137,36 @@ function drop(){
   setTimeout(()=>canDrop=true,200);
 }
 
-// ⭐ 正確的合成檢查（獨立）
-function checkMerge(){
-  for(let i=0;i<balls.length;i++){
-    for(let j=i+1;j<balls.length;j++){
-      const a=balls[i],b=balls[j];
-      if(a.t!==b.t) continue;
-      const d=Math.hypot(a.x-b.x,a.y-b.y);
-      if(d < a.r+b.r-MERGE_EPS){
-        mergeBalls(a,b);
-        return;
-      }
-    }
-  }
-}
-
 function mergeBalls(a,b){
   const nx=(a.x+b.x)/2;
   const ny=(a.y+b.y)/2;
-
   score+=fruits[a.t].s;
   high=Math.max(high,score);
   localStorage.setItem("melonHigh",high);
 
   balls=balls.filter(x=>x!==a&&x!==b);
   const nb=new Ball(nx,ny,a.t+1);
-  nb.scale=1.4;
+  nb.scale=1.5;
   balls.push(nb);
   shake=8;
 }
 
-// 控制
+// 電腦
 canvas.addEventListener("mousemove",e=>{
   targetX=clamp(e.offsetX,0,canvas.width);
 });
 canvas.addEventListener("click",drop);
 
+// 手機（防止 click 重複）
 let touching=false;
-canvas.addEventListener("touchstart",()=>touching=true);
-canvas.addEventListener("touchmove",e=>{
-  const r=canvas.getBoundingClientRect();
-  targetX=clamp(e.touches[0].clientX-r.left,0,canvas.width);
+canvas.addEventListener("touchstart",e=>{
+  touching=true;
 });
-canvas.addEventListener("touchend",()=>{
+canvas.addEventListener("touchmove",e=>{
+  const rect=canvas.getBoundingClientRect();
+  targetX=clamp(e.touches[0].clientX-rect.left,0,canvas.width);
+});
+canvas.addEventListener("touchend",e=>{
   if(touching) drop();
   touching=false;
 });
@@ -208,10 +198,7 @@ function loop(){
   ctx.fill();
   ctx.stroke();
 
-  balls.forEach(b=>b.update());
-  checkMerge();
-  balls.forEach(b=>b.draw());
-
+  balls.forEach(b=>{b.update();b.draw();});
   scoreDiv.innerText=`分數: ${score}　最高分: ${high}`;
   requestAnimationFrame(loop);
 }

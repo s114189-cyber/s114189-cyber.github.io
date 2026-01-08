@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（進化完成修正版）</title>
+<title>合成水果遊戲（自由滑動+堆疊版）</title>
 <style>
 body{
   margin:0;
@@ -73,39 +73,54 @@ class Ball{
     this.x=x; this.y=y; this.vy=0;
     this.t=t;
     this.scale=1;
+    this.settled=false;
   }
   get r(){return fruits[this.t].r*this.scale;}
   get color(){return fruits[this.t].c;}
 
   update(){
-    this.vy+=GRAVITY;
-    this.y+=this.vy;
+    if(!this.settled){
+      this.vy+=GRAVITY;
+      this.y+=this.vy;
+    }
 
-    // 左右限制
+    // 限制在黑框內
     this.x=clamp(this.x,this.r,canvas.width-this.r);
 
+    // 碰撞和合成
     for(const o of balls){
       if(o===this) continue;
       const dx=this.x-o.x, dy=this.y-o.y;
       const d=Math.hypot(dx,dy);
       const min=this.r+o.r;
-
       if(d<min && d>0){
         const nx=dx/d, ny=dy/d;
 
         if(this.color===o.color){
           mergeBalls(this,o);
           return;
-        }else{
-          this.x+=nx;
-          this.y+=ny;
+        } else {
+          // 碰到不同色球時只稍微推開
+          const push=0.5;
+          this.x+=nx*push;
+          this.y+=ny*push;
         }
       }
     }
 
-    if(this.y+this.r>=canvas.height){
-      this.y=canvas.height-this.r;
+    // 堆疊邏輯
+    let maxY=canvas.height-this.r;
+    for(const o of balls){
+      if(o===this) continue;
+      if(Math.abs(o.x-this.x)<this.r*1.1 && o.y>this.y){
+        maxY=Math.min(maxY,o.y-o.r-this.r);
+      }
+    }
+
+    if(this.y>maxY){
+      this.y=maxY;
       this.vy=0;
+      this.settled=true;
     }
   }
 
@@ -152,16 +167,12 @@ function mergeBalls(a,b){
 }
 
 // 電腦
-canvas.addEventListener("mousemove",e=>{
-  targetX=clamp(e.offsetX,0,canvas.width);
-});
+canvas.addEventListener("mousemove",e=>{ targetX=clamp(e.offsetX,0,canvas.width); });
 canvas.addEventListener("click",drop);
 
-// 手機（防止 click 重複）
+// 手機
 let touching=false;
-canvas.addEventListener("touchstart",e=>{
-  touching=true;
-});
+canvas.addEventListener("touchstart",e=>{ touching=true; });
 canvas.addEventListener("touchmove",e=>{
   const rect=canvas.getBoundingClientRect();
   targetX=clamp(e.touches[0].clientX-rect.left,0,canvas.width);
@@ -173,10 +184,7 @@ canvas.addEventListener("touchend",e=>{
 
 function loop(){
   ctx.setTransform(1,0,0,1,0,0);
-  if(shake>0){
-    ctx.translate(Math.random()*6-3,Math.random()*6-3);
-    shake--;
-  }
+  if(shake>0){ ctx.translate(Math.random()*6-3,Math.random()*6-3); shake--; }
   ctx.clearRect(0,0,360,600);
 
   // 紅線警告
@@ -188,9 +196,9 @@ function loop(){
   ctx.lineTo(360,RED_LINE);
   ctx.stroke();
 
+  // 預覽球
   previewX+=(targetX-previewX)*0.25;
   previewX=clamp(previewX,fruits[next].r,canvas.width-fruits[next].r);
-
   const p=fruits[next];
   ctx.beginPath();
   ctx.arc(previewX,45,p.r*1.2,0,Math.PI*2);

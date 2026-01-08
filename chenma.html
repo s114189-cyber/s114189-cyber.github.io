@@ -135,18 +135,64 @@ if(this.y >= maxY){
 
 
   draw(){
-    ctx.save();
-    ctx.translate(this.x,this.y);
-    ctx.scale(this.scale,this.scale);
-    ctx.beginPath();
-    ctx.arc(0,0,fruits[this.t].r,0,Math.PI*2);
-    ctx.fillStyle=this.color;
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-    this.scale+=(1-this.scale)*0.15;
+  ctx.save();
+  ctx.translate(this.x, this.y);
+  ctx.scale(this.scale, this.scale);
+
+  const r = fruits[this.t].r;
+
+  // ===== 球本體 =====
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fillStyle = this.color;
+  ctx.fill();
+  ctx.strokeStyle = "#333";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // ===== 依速度決定狀態 =====
+  const fastFall = this.vy > 8;          // 掉很快 → 驚訝
+  const bigFruit = this.t >= 6;          // 大顆水果 → 酷臉
+
+  // ===== 眼睛看掉落方向 =====
+  const lookX = clamp(this.vy * 0.05, -r * 0.15, r * 0.15);
+
+  const eyeX = r * 0.35;
+  const eyeY = -r * 0.25;
+  const eyeR = r * 0.1;
+
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.arc(-eyeX + lookX, eyeY, eyeR, 0, Math.PI * 2);
+  ctx.arc( eyeX + lookX, eyeY, eyeR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ===== 嘴巴 =====
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = r * 0.08;
+
+  ctx.beginPath();
+
+  if(fastFall){
+    // 😵 驚訝臉（O 嘴）
+    ctx.arc(0, r * 0.2, r * 0.18, 0, Math.PI * 2);
+  }else if(bigFruit){
+    // 😎 酷臉（平嘴）
+    ctx.moveTo(-r * 0.25, r * 0.25);
+    ctx.lineTo( r * 0.25, r * 0.25);
+  }else{
+    // 🙂 一般笑臉
+    ctx.arc(0, r * 0.15, r * 0.35, 0, Math.PI);
   }
+
+  ctx.stroke();
+
+  ctx.restore();
+
+  // 縮放動畫
+  this.scale += (1 - this.scale) * 0.15;
 }
+
 
 let balls=[];
 let targetX=180;

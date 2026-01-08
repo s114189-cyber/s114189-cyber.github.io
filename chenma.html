@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>合成水果遊戲（正確堆疊版）</title>
+<title>合成水果遊戲（可正常合成版）</title>
 <style>
 body{
   margin:0;
@@ -52,6 +52,7 @@ const orderDiv=document.getElementById("order");
 
 const GRAVITY=0.6;
 const RED_LINE=80;
+const MERGE_EPS=2; // 合成容錯
 
 let shake=0;
 let score=0;
@@ -81,7 +82,6 @@ class Ball{
     this.vy+=GRAVITY;
     let nextY=this.y+this.vy;
 
-    // 左右邊界（黑框）
     this.x=clamp(this.x,this.r,canvas.width-this.r);
 
     // 找正下方最近支撐
@@ -89,24 +89,16 @@ class Ball{
 
     for(const o of balls){
       if(o===this) continue;
-
       const dx=Math.abs(this.x-o.x);
-      if(dx < this.r + o.r - 1){
-        const top=o.y - o.r - this.r;
-        if(top >= this.y && top < supportY){
+      if(dx < this.r+o.r-1){
+        const top=o.y-o.r-this.r;
+        if(top>=this.y && top<supportY){
           supportY=top;
         }
       }
-
-      // 合成（任意方向）
-      const d=Math.hypot(this.x-o.x,this.y-o.y);
-      if(d < this.r + o.r && this.t===o.t){
-        mergeBalls(this,o);
-        return;
-      }
     }
 
-    if(nextY > supportY){
+    if(nextY>supportY){
       this.y=supportY;
       this.vy=0;
     }else{
@@ -142,6 +134,21 @@ function drop(){
   setTimeout(()=>canDrop=true,200);
 }
 
+// ⭐ 正確的合成檢查（獨立）
+function checkMerge(){
+  for(let i=0;i<balls.length;i++){
+    for(let j=i+1;j<balls.length;j++){
+      const a=balls[i],b=balls[j];
+      if(a.t!==b.t) continue;
+      const d=Math.hypot(a.x-b.x,a.y-b.y);
+      if(d < a.r+b.r-MERGE_EPS){
+        mergeBalls(a,b);
+        return;
+      }
+    }
+  }
+}
+
 function mergeBalls(a,b){
   const nx=(a.x+b.x)/2;
   const ny=(a.y+b.y)/2;
@@ -152,7 +159,7 @@ function mergeBalls(a,b){
 
   balls=balls.filter(x=>x!==a&&x!==b);
   const nb=new Ball(nx,ny,a.t+1);
-  nb.scale=1.5;
+  nb.scale=1.4;
   balls.push(nb);
   shake=8;
 }
@@ -201,7 +208,10 @@ function loop(){
   ctx.fill();
   ctx.stroke();
 
-  balls.forEach(b=>{b.update();b.draw();});
+  balls.forEach(b=>b.update());
+  checkMerge();
+  balls.forEach(b=>b.draw());
+
   scoreDiv.innerText=`分數: ${score}　最高分: ${high}`;
   requestAnimationFrame(loop);
 }
